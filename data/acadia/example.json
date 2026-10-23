@@ -1,0 +1,9 @@
+{
+  "query": "How long is the return window?",
+  "sources": [
+    {
+      "id": "acadia/demo-policy",
+      "text": "Fictional demonstration policy: unused items may be returned within 30 days. Refunds above 100 demo credits require a human reviewer."
+    }
+  ]
+}

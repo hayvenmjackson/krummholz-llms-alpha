@@ -1,0 +1,9 @@
+{
+  "query": "What survival percentage did the validated calculator report?",
+  "sources": [
+    {
+      "id": "katahdin/demo-result",
+      "text": "Fictional training plot: a validated calculator reports 90 surviving seedlings out of 100 initially planted, equal to 90% survival. This is invented demonstration data, not a field observation."
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "execution": "local_only",
+  "external_tools": [],
+  "external_actions": "deny_all",
+  "cloud_fallback": false,
+  "training_on_requests": false,
+  "default_persistent_payload_logging": false,
+  "profiles": {
+    "acadia": {
+      "source_namespace": "acadia/",
+      "purpose": "Synthetic customer-service policy questions and evidence-based handoff review",
+      "knowledge_path": "data/acadia",
+      "permissions": [],
+      "release_status": "baseline_only"
+    },
+    "katahdin": {
+      "source_namespace": "katahdin/",
+      "purpose": "Synthetic forestry/fisheries source questions; validated numerical results only",
+      "knowledge_path": "data/katahdin",
+      "permissions": [],
+      "release_status": "baseline_only_domain_review_pending"
+    },
+    "atlantic": {
+      "source_namespace": "atlantic/",
+      "purpose": "Synthetic local-document questions; no autonomous actions",
+      "knowledge_path": "data/atlantic",
+      "permissions": [],
+      "release_status": "baseline_only"
+    }
+  }
+}

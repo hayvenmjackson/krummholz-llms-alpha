@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+models/
+runtime/
+artifacts/
+.venv/
+*.apk
+*.aab
+*.keystore
+*.jks

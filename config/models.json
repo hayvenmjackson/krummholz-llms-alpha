@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "recorded_on": "2026-10-23",
+  "selection": {
+    "quality_baseline": "PleIAs/Pleias-RAG-1B",
+    "initial_runtime_smoke_test": "PleIAs/Pleias-RAG-350M",
+    "optional_general_comparator": "HuggingFaceTB/SmolLM3-3B",
+    "release_model_selected": false,
+    "krummholz_training_completed": false
+  },
+  "artifacts": [
+    {
+      "id": "pleias-rag-350m-upstream-bf16-gguf",
+      "repository": "PleIAs/Pleias-RAG-350M-gguf",
+      "revision": "e71be595ff79fe6240a5be93661594c81fe8140e",
+      "filename": "350m_test.gguf",
+      "bytes": 709295424,
+      "sha256": "2eeed95bfc1a6c58868697ba5120e32a34f54ff6f11b730bbd5c5384eac5871a",
+      "download_url": "https://huggingface.co/PleIAs/Pleias-RAG-350M-gguf/resolve/e71be595ff79fe6240a5be93661594c81fe8140e/350m_test.gguf",
+      "source_repository": "PleIAs/Pleias-RAG-350M",
+      "source_revision": "db001b29a33532583d14979c3c38ef04b6d59352",
+      "source_safetensors_sha256": "482b96a25c15475c061945c4c7c6f982ddc2776ade0fff0cbad15dea0493d2d9",
+      "publisher_license": "Apache-2.0",
+      "architecture": "LlamaForCausalLM",
+      "max_context_tokens": 4096,
+      "status": "unchanged_upstream_baseline_not_krummholz_trained"
+    },
+    {
+      "id": "pleias-rag-1b-upstream-bf16-gguf",
+      "repository": "PleIAs/Pleias-RAG-1B-gguf",
+      "revision": "443722afa1237b00a2e18d9eb2f1f1dd9dc37ad6",
+      "filename": "Pleias-RAG-1B.gguf",
+      "bytes": 2393458272,
+      "sha256": "c6e7da82daf0e45b4946de035e6dcc7e0eebdd11433cbb66cd8a4567bfcb67e7",
+      "download_url": "https://huggingface.co/PleIAs/Pleias-RAG-1B-gguf/resolve/443722afa1237b00a2e18d9eb2f1f1dd9dc37ad6/Pleias-RAG-1B.gguf",
+      "source_repository": "PleIAs/Pleias-RAG-1B",
+      "source_revision": "b8c3f1ab2c13e1d44305eee46662310cdbfd72a1",
+      "source_safetensors_sha256": "0fc0df86988365766bd8ccb29f2cfaf1d4efaefd7a909f32161a270b2f280d9d",
+      "publisher_license": "Apache-2.0",
+      "architecture": "LlamaForCausalLM",
+      "max_context_tokens": 4096,
+      "status": "unchanged_upstream_baseline_not_krummholz_trained"
+    }
+  ],
+  "lineage": {
+    "publisher_claim": "Pleias base models use Common Corpus open/public-domain sources; RAG specialization includes Gemma-generated synthetic examples.",
+    "verification_scope": "Publisher metadata, model cards, paper, artifact sizes and published hashes checked. Training corpus was not independently audited in full.",
+    "claim_not_made": "Universal rights clearance, absence of personal data, safety guarantees, or suitability for any production task.",
+    "synthetic_generator_lineage": "Gemma 3 models described in Pleias paper; review applicable source and generator terms before redistribution or further synthetic-data production.",
+    "paper": "https://arxiv.org/html/2504.18225v2",
+    "base_card": "https://huggingface.co/PleIAs/Pleias-1.2b-Preview",
+    "protocol_reference": "https://github.com/Pleias/Pleias-RAG-Library"
+  },
+  "comparator": {
+    "repository": "HuggingFaceTB/SmolLM3-3B",
+    "revision": "a07cc9a04f16550a088caea529712d1d335b0ac1",
+    "publisher_license": "Apache-2.0",
+    "not_downloaded_or_approved_for_harness": true,
+    "caution": "Broader web-derived lineage requires its own assessment. No model family can be substituted without revisiting protocol, tokenizer budget and evaluation."
+  }
+}

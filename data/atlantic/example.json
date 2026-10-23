@@ -1,0 +1,9 @@
+{
+  "query": "What is the project codename?",
+  "sources": [
+    {
+      "id": "atlantic/demo-note",
+      "text": "Fictional local note: the demonstration project's codename is Paper Lantern. No messages, purchases or file changes have been authorized."
+    }
+  ]
+}
