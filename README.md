@@ -3,7 +3,8 @@
 [![Offline harness checks](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/workflows/harness-checks.yml/badge.svg)](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/workflows/harness-checks.yml)
 
 Source and development evidence for Acadia, Katahdin and Atlantic, the Krummholz
-LLM offerings. Initial implementation and device testing are underway.
+LLM offerings. Initial implementation is underway; device testing is the next
+milestone.
 
 ## Android builds
 
