@@ -72,7 +72,7 @@ def verify_runtime(path: Path) -> None:
         env=runtime_environment(),
     )
     help_text = result.stdout + result.stderr
-    required = ("--special", "--no-display-prompt", "--no-conversation", "--no-context-shift")
+    required = ("--special", "--no-display-prompt", "--no-conversation", "--no-context-shift", "--binary-file")
     if result.returncode != 0 or any(flag not in help_text for flag in required):
         raise InputError("runtime help does not confirm required raw-output/context-control flags")
 
@@ -92,9 +92,11 @@ def run_request(
     # Deletion is not a forensic secure-erasure promise. No client data is used in smoke tests.
     with tempfile.TemporaryDirectory(prefix="krummholz-llm-") as temporary:
         prompt_path = Path(temporary) / "prompt.txt"
-        prompt_path.write_text(prompt.text, encoding="utf-8")
+        # Keep the publisher's final LF and byte-level framing identical on Windows
+        # and Linux. llama-completion's text -f reader removes that final LF.
+        prompt_path.write_bytes(prompt.text.encode("utf-8"))
         command = [
-            str(executable), "-m", str(model), "-f", str(prompt_path),
+            str(executable), "-m", str(model), "--binary-file", str(prompt_path),
             "-c", str(context), "-n", str(output_tokens), "-ngl", "0",
             "-t", str(threads), "-b", str(batch_size), "-ub", str(batch_size),
             "--temp", "0", "--seed", "42", "--special", "--no-display-prompt",

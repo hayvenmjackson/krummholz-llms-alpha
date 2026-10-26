@@ -159,8 +159,12 @@ class OutputSafetyTests(unittest.TestCase):
         def fake_process(command, **kwargs):
             seen["command"] = command
             seen["kwargs"] = kwargs
-            seen["prompt_path"] = Path(command[command.index("-f") + 1])
+            seen["prompt_path"] = Path(command[command.index("--binary-file") + 1])
             self.assertTrue(seen["prompt_path"].exists())
+            payload = seen["prompt_path"].read_bytes()
+            self.assertTrue(payload.endswith(b"<|language_start|>\n"))
+            self.assertNotIn(b"\r", payload)
+            self.assertNotIn("-f", command)
             self.assertFalse(kwargs["shell"])
             self.assertNotIn("--hf-repo", command)
             return mock.Mock(returncode=0, stdout=wrapped("Evidence is insufficient."), stderr="")
@@ -226,7 +230,7 @@ class ProvisioningBoundaryTests(unittest.TestCase):
     def test_timeout_removes_prompt_without_returning_raw_output(self):
         seen = {}
         def timeout_process(command, **kwargs):
-            seen["prompt_path"] = Path(command[command.index("-f") + 1])
+            seen["prompt_path"] = Path(command[command.index("--binary-file") + 1])
             raise subprocess.TimeoutExpired(command, 1, output="private source text")
         with mock.patch("krummholz_llm.runner.subprocess.run", side_effect=timeout_process):
             result = run_request(request_data(), "acadia", Path("llama-completion.exe"),
