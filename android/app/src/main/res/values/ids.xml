@@ -1,0 +1,8 @@
+<resources>
+    <item name="source_input" type="id" /><item name="question_input" type="id" />
+    <item name="profile_picker" type="id" /><item name="ask_button" type="id" />
+    <item name="cancel_button" type="id" /><item name="import_button" type="id" />
+    <item name="model_status" type="id" /><item name="answer_text" type="id" />
+    <item name="download_button" type="id" /><item name="clear_button" type="id" />
+    <item name="operation_status" type="id" />
+</resources>

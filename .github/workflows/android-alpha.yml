@@ -1,0 +1,217 @@
+name: Android alpha checks
+
+on:
+  workflow_dispatch:
+    inputs:
+      model_run_id:
+        description: "Preparation run containing the exact embedded-manifest model"
+        required: true
+        default: "40107809392"
+        type: string
+      run_emulators:
+        description: "Run real model and UI checks on 4KB and 16KB Android emulators"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  compile:
+    if: ${{ !inputs.run_emulators }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ggml-org/llama.cpp
+          ref: 620d2225cc436ab0b001e3200e590e3b286ef9ab
+          path: android/third_party/llama.cpp
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install pinned Android tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+      - name: Compile and check development source only
+        run: |
+          chmod +x android/gradlew
+          android/gradlew -p android --no-daemon --console=plain --max-workers=2 :app:testReleaseUnitTest :app:assembleRelease :app:assembleReleaseAndroidTest :app:lintRelease
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: development-build-reports
+          path: |
+            android/app/build/reports/
+            android/app/build/test-results/
+          retention-days: 14
+  build:
+    if: inputs.run_emulators
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ggml-org/llama.cpp
+          ref: 620d2225cc436ab0b001e3200e590e3b286ef9ab
+          path: android/third_party/llama.cpp
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download preparation artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: alpha-model
+          run-id: ${{ inputs.model_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/alpha-model
+      - name: Verify pinned model and stage test-only asset
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,pathlib,shutil
+          expected=json.loads(pathlib.Path('android/app/src/main/assets/model-manifest.json').read_text())
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'alpha-model'/expected['filename']
+          h=hashlib.sha256()
+          with p.open('rb') as f:
+              for chunk in iter(lambda:f.read(1024*1024),b''): h.update(chunk)
+          assert expected['approved'] and p.stat().st_size==expected['bytes'] and h.hexdigest()==expected['sha256']
+          target=pathlib.Path('android/app/src/androidTest/assets/test-model.gguf')
+          target.parent.mkdir(parents=True,exist_ok=True)
+          shutil.copyfile(p,target)
+          PY
+      - name: Install pinned Android tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+      - name: Restore alpha signing key
+        id: signing
+        env:
+          KEY_B64: ${{ secrets.LLM_ALPHA_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.LLM_ALPHA_STORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEY_B64" && test -n "$STORE_PASSWORD"
+          umask 077
+          key="$RUNNER_TEMP/krummholz-alpha.keystore"
+          test ! -e "$key"
+          echo "owned=true" >> "$GITHUB_OUTPUT"
+          printf '%s' "$KEY_B64" | base64 --decode > "$key"
+          digest=$(keytool -exportcert -keystore "$key" -alias krummholz-alpha -storepass:env STORE_PASSWORD | sha256sum | cut -d' ' -f1)
+          test "$digest" = a597e224548e8aef87a825ccda56bac2036ab183aca1d26e486661ae92542ccb
+      - name: Test and build signed release
+        env:
+          STORE_PASSWORD: ${{ secrets.LLM_ALPHA_STORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          chmod +x android/gradlew
+          android/gradlew -p android --no-daemon --console=plain --max-workers=2 \
+            "-Pandroid.injected.signing.store.file=$RUNNER_TEMP/krummholz-alpha.keystore" \
+            "-Pandroid.injected.signing.store.password=$STORE_PASSWORD" \
+            "-Pandroid.injected.signing.key.alias=krummholz-alpha" \
+            "-Pandroid.injected.signing.key.password=$STORE_PASSWORD" \
+            "-Pandroid.injected.signing.store.type=JKS" \
+            :app:testReleaseUnitTest :app:assembleRelease :app:assembleReleaseAndroidTest :app:lintRelease
+      - name: Remove restored key
+        if: always() && steps.signing.outputs.owned == 'true'
+        run: rm -f -- "$RUNNER_TEMP/krummholz-alpha.keystore"
+      - name: Verify release artifact
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          cp android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/release/Krummholz-LLMs-0.1.0-alpha.1.apk"
+          python tools/verify_android_release.py --apk "$RUNNER_TEMP/release/Krummholz-LLMs-0.1.0-alpha.1.apk" --build-tools "$ANDROID_HOME/build-tools/35.0.0" --report "$RUNNER_TEMP/release/apk-verification.json"
+          cp android/app/build/outputs/apk/androidTest/release/app-release-androidTest.apk "$RUNNER_TEMP/release/instrumentation.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-alpha-build
+          path: ${{ runner.temp }}/release/
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-build-reports
+          path: |
+            android/app/build/reports/
+            android/app/build/test-results/
+          retention-days: 14
+
+  emulator:
+    needs: build
+    if: inputs.run_emulators
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: google_apis
+            page_size: 4096
+          - image: google_apis_ps16k
+            page_size: 16384
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-alpha-build
+          path: apk
+      - name: Enable runner KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install and start official Android emulator
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          sdkmanager "emulator" "platform-tools" "system-images;android-36;$IMAGE;x86_64"
+          echo no | avdmanager create avd -n alpha -k "system-images;android-36;$IMAGE;x86_64" --force
+          "$ANDROID_HOME/emulator/emulator" -avd alpha -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 4096 > emulator-boot.log 2>&1 &
+          adb wait-for-device
+          timeout 180 sh -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
+          adb shell input keyevent 82
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+      - name: Test actual release APK and model
+        env:
+          EXPECTED_PAGE_SIZE: ${{ matrix.page_size }}
+        run: |
+          set -euo pipefail
+          actual=$(adb shell getconf PAGE_SIZE | tr -d '\r')
+          test "$actual" = "$EXPECTED_PAGE_SIZE"
+          adb install apk/Krummholz-LLMs-0.1.0-alpha.1.apk
+          adb install apk/instrumentation.apk
+          adb logcat -c
+          timeout 1200 adb shell am instrument -w -r ai.krummholz.llm.test/androidx.test.runner.AndroidJUnitRunner | tee instrumentation.txt
+          grep -Eq '^OK \([0-9]+ tests?\)' instrumentation.txt
+          if grep -Eq 'FAILURES!!!|INSTRUMENTATION_FAILED|Process crashed' instrumentation.txt; then exit 1; fi
+      - name: Collect test evidence
+        if: always()
+        run: |
+          mkdir -p test-evidence
+          adb pull /sdcard/Android/data/ai.krummholz.llm/files/test-evidence test-evidence/ || true
+          adb shell dumpsys meminfo ai.krummholz.llm > test-evidence/memory.txt || true
+          adb logcat -d -b crash > test-evidence/crashes.txt || true
+          adb shell getconf PAGE_SIZE > test-evidence/page-size.txt || true
+          adb emu kill || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-${{ matrix.page_size }}-evidence
+          path: |
+            instrumentation.txt
+            emulator-boot.log
+            test-evidence/
+          retention-days: 14

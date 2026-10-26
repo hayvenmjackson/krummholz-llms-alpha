@@ -1,0 +1,11 @@
+{
+  "approved": false,
+  "name": "Pleias RAG 350M · Q4_K_M",
+  "filename": "pleias-rag-350m-q4_k_m.gguf",
+  "bytes": 0,
+  "sha256": "",
+  "download_url": "",
+  "license": "Apache-2.0",
+  "upstream": "PleIAs/Pleias-RAG-350M",
+  "note": "Release provisioning must replace this manifest with the verified quantized artifact."
+}
