@@ -1,0 +1,88 @@
+name: Verify BF16 multipart distribution candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      model_run_id:
+        description: "Run containing the exact verified SmolLM3 BF16 candidate"
+        required: true
+        default: "40324601321"
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test streaming packaging boundaries
+        run: python -B -m unittest tests.test_model_multipart -v
+      - uses: actions/download-artifact@v4
+        with:
+          name: smollm3-bf16-gguf-candidate
+          run-id: ${{ inputs.model_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/verified-model
+      - name: Split and verify every part against the whole model
+        env:
+          SOURCE_RUN_ID: ${{ inputs.model_run_id }}
+        run: |
+          python -B - <<'PY'
+          import hashlib, json, os, pathlib, shutil, urllib.request
+          from tools import model_multipart as multipart
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          evidence = json.loads(pathlib.Path('docs/smollm3-distribution-evidence.json').read_text())
+          pin = evidence['converted_model']
+          app = json.loads(pathlib.Path('android/app/src/main/assets/model-manifest.json').read_text())
+          assert all(app[k] == pin[k] for k in ('filename', 'bytes', 'sha256'))
+          source = root / 'verified-model' / pin['filename']
+          package = root / 'model-distribution-candidate'
+          receipt = multipart.split(source, package, pin['bytes'], pin['sha256'], provenance=evidence)
+          checked = multipart.verify(package / multipart.MANIFEST_NAME, receipt['manifest_sha256'])
+          assert checked['verified'] and checked['parts'] == 4
+          manifest = json.loads((package / multipart.MANIFEST_NAME).read_text())
+          # Preserve the exact original model card and full license alongside conversion notices.
+          with urllib.request.urlopen(evidence['model_card']['url'], timeout=60) as response:
+              card = response.read(1024 * 1024 + 1)
+          assert len(card) == evidence['model_card']['bytes']
+          assert hashlib.sha256(card).hexdigest() == evidence['model_card']['sha256']
+          (package / 'UPSTREAM_MODEL_CARD.md').write_bytes(card)
+          license_file = pathlib.Path(evidence['license_copy']['path'])
+          assert hashlib.sha256(license_file.read_bytes()).hexdigest() == evidence['license_copy']['sha256']
+          shutil.copyfile(license_file, package / 'Apache-2.0.txt')
+          shutil.copyfile('android/app/src/main/assets/licenses/NOTICE.txt', package / 'CONVERSION_NOTICE.txt')
+          metadata = root / 'model-distribution-evidence'
+          metadata.mkdir()
+          shutil.copyfile(package / multipart.MANIFEST_NAME, metadata / multipart.MANIFEST_NAME)
+          embedded = {key: manifest[key] for key in ('schema_version', 'format', 'part_bytes', 'parts')}
+          embedded['manifest_sha256'] = receipt['manifest_sha256']
+          (metadata / 'android-multipart.json').write_text(json.dumps(embedded, indent=2) + '\n')
+          report = {'source_run_id': os.environ['SOURCE_RUN_ID'], 'packaging_commit': os.environ['GITHUB_SHA'],
+                    'model': pin, 'manifest_sha256': receipt['manifest_sha256'],
+                    'all_parts_and_whole_verified': True, 'quality_accepted': False,
+                    'release_authorized': False, 'model_inference_performed': False}
+          (metadata / 'distribution-verification.json').write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: model-distribution-evidence
+          path: ${{ runner.temp }}/model-distribution-evidence/
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: model-distribution-candidate
+          path: ${{ runner.temp }}/model-distribution-candidate/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 3

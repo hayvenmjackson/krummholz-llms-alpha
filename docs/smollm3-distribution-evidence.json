@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "checked_on": "2026-10-26",
+  "publisher_repository": "HuggingFaceTB/SmolLM3-3B",
+  "publisher_revision": "a07cc9a04f16550a088caea529712d1d335b0ac1",
+  "publisher_license_declaration": "Apache-2.0",
+  "model_card": {
+    "url": "https://huggingface.co/HuggingFaceTB/SmolLM3-3B/resolve/a07cc9a04f16550a088caea529712d1d335b0ac1/README.md",
+    "bytes": 17452,
+    "sha256": "24f16f90b883af3618425a589783a944356a7fc2e3cfa69b579c9ff06963e178",
+    "evidence": "Frontmatter license: apache-2.0 and License section links Apache2."
+  },
+  "publisher_file_inventory": {
+    "url": "https://huggingface.co/api/models/HuggingFaceTB/SmolLM3-3B/tree/a07cc9a04f16550a088caea529712d1d335b0ac1?recursive=true",
+    "response_sha256": "2b1415ba46cc826a5106742caf6d7a5a524246791f6035855dc626546d409d4c",
+    "separate_LICENSE_present": false,
+    "separate_NOTICE_present": false,
+    "direct_LICENSE_status": 404,
+    "direct_NOTICE_status": 404
+  },
+  "license_copy": {
+    "path": "docs/licenses/SmolLM3-Apache-2.0.txt",
+    "source_url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+    "bytes": 11358,
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  "converted_model": {
+    "filename": "SmolLM3-3B-BF16.gguf",
+    "bytes": 6158339904,
+    "sha256": "8bb048dbbc726c8e10bdf41575f5209b9b68a27b0ec15390b5031846047cec9b",
+    "converter_commit": "620d2225cc436ab0b001e3200e590e3b286ef9ab",
+    "quantization_performed": false,
+    "tensor_values_verified_by_conversion_run": true,
+    "evidence_run": "https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40324601321"
+  },
+  "redistribution_preparation": [
+    "Include complete Apache2 license copy.",
+    "Preserve relevant publisher attribution/model-card provenance.",
+    "Prominently identify conversion from safetensors to GGUF and multipart packaging; do not present conversion as Krummholz training.",
+    "No upstream NOTICE file exists at the pinned revision; do not invent one as if publisher-supplied."
+  ],
+  "limitations": [
+    "Publisher model license does not establish public-domain status or independently audit every inherited training source.",
+    "These records do not establish quality acceptance, Android compatibility or release authorization."
+  ],
+  "release_authorized": false,
+  "quality_accepted": false,
+  "model_uploaded_by_this_task": false
+}
