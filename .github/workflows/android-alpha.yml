@@ -92,7 +92,10 @@ jobs:
           import hashlib,json,os,pathlib
           expected=json.loads(pathlib.Path('android/app/src/main/assets/model-manifest.json').read_text())
           assert expected['approved'] and pathlib.Path(expected['filename']).name==expected['filename']
-          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'alpha-model'/expected['filename']
+          base=pathlib.Path(os.environ['RUNNER_TEMP'])/'alpha-model'
+          candidates=[p for p in (base/expected['filename'],base/'gguf-work'/expected['filename']) if p.is_file()]
+          assert len(candidates)==1, 'Artifact must contain exactly one model at a known layout'
+          p=candidates[0]
           h=hashlib.sha256()
           with p.open('rb') as f:
               for chunk in iter(lambda:f.read(1024*1024),b''): h.update(chunk)
@@ -230,7 +233,10 @@ jobs:
           import hashlib,json,os,pathlib,subprocess
           expected=json.loads(pathlib.Path('apk/model-manifest.json').read_text())
           assert expected['approved'] and pathlib.Path(expected['filename']).name==expected['filename']
-          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'alpha-model'/expected['filename']
+          base=pathlib.Path(os.environ['RUNNER_TEMP'])/'alpha-model'
+          candidates=[p for p in (base/expected['filename'],base/'gguf-work'/expected['filename']) if p.is_file()]
+          assert len(candidates)==1, 'Artifact must contain exactly one model at a known layout'
+          p=candidates[0]
           with p.open('rb') as f: actual=hashlib.file_digest(f,'sha256').hexdigest()
           assert p.stat().st_size==expected['bytes'] and actual==expected['sha256']
           directory='/sdcard/Android/data/ai.krummholz.llm/files'

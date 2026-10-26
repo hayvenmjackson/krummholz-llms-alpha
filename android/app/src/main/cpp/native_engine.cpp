@@ -20,8 +20,10 @@ namespace {
 constexpr int kBatchSize = 16;
 constexpr size_t kMaxPromptBytes = 65536;
 constexpr size_t kMaxOutputBytes = 262144;
-constexpr int64_t kMaxModelBytes = 4LL * 1024 * 1024 * 1024;
+constexpr int64_t kMaxModelBytes = 8LL * 1024 * 1024 * 1024;
+constexpr int64_t kSmolLm3Bf16Bytes = 6158339904LL;
 constexpr int64_t kOperationMillis = 180000;
+enum class ModelProtocol { None, PleiasRag, SmolLm3Chat };
 
 int64_t nowMillis() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -45,6 +47,7 @@ struct Engine {
     std::atomic<bool> closed{false};
     std::atomic<int64_t> deadline{0};
     Model model{nullptr, llama_model_free};
+    ModelProtocol protocol = ModelProtocol::None;
     int contextTokens = 2048;
     int threads = 2;
 
@@ -185,17 +188,96 @@ void validatePleiasTokenizer(const llama_model * model) {
         throw std::invalid_argument("The model does not have the verified Pleias tokenizer metadata.");
 }
 
+bool metadataEquals(const llama_model * model, const char * key, const char * expected) {
+    char value[64];
+    return llama_model_meta_val_str(model, key, value, sizeof(value)) ==
+            static_cast<int>(std::strlen(expected)) && std::strcmp(value, expected) == 0;
+}
+
+ModelProtocol validateModelIdentity(const llama_model * model, int64_t fileBytes) {
+    if (metadataEquals(model, "general.architecture", "llama")) {
+        if (fileBytes > 4LL * 1024 * 1024 * 1024)
+            throw std::invalid_argument("The Pleias adapter retains its four-GiB model limit.");
+        validatePleiasTokenizer(model);
+        return ModelProtocol::PleiasRag;
+    }
+    if (!metadataEquals(model, "general.architecture", "smollm3"))
+        throw std::invalid_argument("This model architecture has no verified protocol adapter.");
+    const llama_vocab * vocab = llama_model_get_vocab(model);
+    // This branch is the exact, unquantized conversion checked in hosted run
+    // 40324601321. ModelStore verifies its full SHA-256 before native parsing;
+    // these independent shape/token checks cannot replace that file hash gate.
+    if (fileBytes != kSmolLm3Bf16Bytes || llama_model_ftype(model) != LLAMA_FTYPE_MOSTLY_BF16 ||
+        llama_model_n_params(model) != 3075098624ULL || llama_model_n_layer(model) != 36 ||
+        llama_model_n_embd(model) != 2048 || llama_model_n_head(model) != 16 ||
+        llama_model_n_head_kv(model) != 4 || llama_model_n_ctx_train(model) != 65536 ||
+        !metadataEquals(model, "tokenizer.ggml.model", "gpt2") ||
+        !metadataEquals(model, "tokenizer.ggml.pre", "smaug-bpe") ||
+        llama_vocab_type(vocab) != LLAMA_VOCAB_TYPE_BPE || llama_vocab_n_tokens(vocab) != 128256 ||
+        llama_vocab_bos(vocab) != 128000 || llama_vocab_eos(vocab) != 128012 ||
+        llama_vocab_pad(vocab) != 128012 ||
+        tokenPiece(vocab, 128000) != "<|begin_of_text|>" ||
+        tokenPiece(vocab, 128001) != "<|end_of_text|>" ||
+        tokenPiece(vocab, 128002) != "<think>" || tokenPiece(vocab, 128003) != "</think>" ||
+        tokenPiece(vocab, 128011) != "<|im_start|>" || tokenPiece(vocab, 128012) != "<|im_end|>" ||
+        tokenPiece(vocab, 128015) != "<tool_call>" || tokenPiece(vocab, 128016) != "</tool_call>")
+        throw std::invalid_argument("The model does not match the verified SmolLM3 BF16 identity.");
+    return ModelProtocol::SmolLm3Chat;
+}
+
+bool startsAndEnds(const std::string & value, const std::string & prefix, const std::string & suffix) {
+    return value.size() >= prefix.size() + suffix.size() &&
+           value.compare(0, prefix.size(), prefix) == 0 &&
+           value.compare(value.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+void validateSmolFraming(const std::string & prompt, const llama_vocab * vocab) {
+    const std::string prefix = "<|im_start|>system\n";
+    const std::string userHeader = "<|im_start|>user\n";
+    const std::string suffix = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n";
+    if (!startsAndEnds(prompt, prefix, suffix))
+        throw std::invalid_argument("The prompt must preserve the verified SmolLM3 framing.");
+    const size_t user = prompt.find(userHeader, prefix.size());
+    const size_t userEnd = prompt.size() - suffix.size();
+    const std::string closedSystem = "<|im_end|>\n";
+    if (user == std::string::npos || user >= userEnd ||
+        prompt.find("<|im_start|>", prefix.size()) != user ||
+        prompt.find("<|im_start|>", user + userHeader.size()) != userEnd + closedSystem.size())
+        throw std::invalid_argument("Only the verified system, user and assistant roles are supported.");
+    // The pinned publisher template leaves the QA system message unclosed.
+    // Its tool variant closes it. Preserve both; never silently repair either.
+    const size_t firstEnd = prompt.find("<|im_end|>");
+    if (firstEnd != userEnd &&
+        (user < closedSystem.size() || firstEnd != user - closedSystem.size() ||
+         prompt.compare(firstEnd, closedSystem.size(), closedSystem) != 0 ||
+         prompt.find("<|im_end|>", firstEnd + closedSystem.size()) != userEnd))
+        throw std::invalid_argument("The prompt contains unsupported conversation boundaries.");
+    // All 256 added-token literals in this pinned vocabulary are excluded from
+    // user JSON, including normal-attributed <think>/<tool_call>/<code> tokens.
+    // System tool signatures and the fixed assistant prefix retain their markers.
+    const size_t userBody = user + userHeader.size();
+    for (llama_token token = 128000; token < 128256; ++token) {
+        const std::string literal = tokenPiece(vocab, token);
+        const size_t found = prompt.find(literal, userBody);
+        if (!literal.empty() && found != std::string::npos && found < userEnd)
+            throw std::invalid_argument("User content contains a reserved SmolLM3 token literal.");
+    }
+}
+
 std::vector<llama_token> tokenizePrompt(Engine & engine, const std::string & prompt, int maxOutput) {
     if (!engine.model) throw std::runtime_error("Load a verified model before tokenization.");
-    const std::string prefix = "<|end_of_text|><|query_start|>";
-    const std::string suffix = "<|language_start|>\n";
-    if (prompt.compare(0, prefix.size(), prefix) != 0 || prompt.size() < suffix.size() ||
-        prompt.compare(prompt.size() - suffix.size(), suffix.size(), suffix) != 0)
-        throw std::invalid_argument("The prompt must preserve the verified Pleias framing.");
+    if (engine.protocol == ModelProtocol::PleiasRag) {
+        if (!startsAndEnds(prompt, "<|end_of_text|><|query_start|>", "<|language_start|>\n"))
+            throw std::invalid_argument("The prompt must preserve the verified Pleias framing.");
+    } else if (engine.protocol == ModelProtocol::SmolLm3Chat) {
+        validateSmolFraming(prompt, llama_model_get_vocab(engine.model.get()));
+    } else {
+        throw std::invalid_argument("No verified protocol adapter is loaded.");
+    }
     engine.check();
     const llama_vocab * vocab = llama_model_get_vocab(engine.model.get());
-    // The caller supplies exactly the publisher's initial EOS. Do not infer any
-    // additional BOS/EOS from GGUF defaults; control-token parsing stays enabled.
+    // The caller supplies the publisher framing: initial EOS for Pleias, no BOS
+    // for SmolLM3. Never infer extra BOS/EOS from GGUF defaults.
     const int probe = llama_tokenize(vocab, prompt.data(), static_cast<int>(prompt.size()),
                                      nullptr, 0, false, true);
     if (probe >= 0 || probe == INT32_MIN)
@@ -207,9 +289,21 @@ std::vector<llama_token> tokenizePrompt(Engine & engine, const std::string & pro
     if (llama_tokenize(vocab, prompt.data(), static_cast<int>(prompt.size()), tokens.data(),
                        needed, false, true) != needed)
         throw std::runtime_error("The prompt could not be tokenized consistently.");
-    if (tokens.size() < 2 || tokens.front() != 2 || tokens[1] != 65517 ||
-        std::count(tokens.begin(), tokens.end(), 2) != 1)
-        throw std::invalid_argument("The prompt must contain exactly one initial EOS token.");
+    if (engine.protocol == ModelProtocol::PleiasRag) {
+        if (tokens.size() < 2 || tokens.front() != 2 || tokens[1] != 65517 ||
+            std::count(tokens.begin(), tokens.end(), 2) != 1)
+            throw std::invalid_argument("The prompt must contain exactly one initial EOS token.");
+    } else {
+        const auto ends = std::count(tokens.begin(), tokens.end(), 128012);
+        if (tokens.empty() || tokens.front() != 128011 ||
+            std::count(tokens.begin(), tokens.end(), 128011) != 3 || (ends != 1 && ends != 2))
+            throw std::invalid_argument("The prompt does not match the verified SmolLM3 role tokens.");
+        for (const auto token : tokens) {
+            if (token == 128000 || token == 128001 ||
+                (llama_vocab_is_control(vocab, token) && token != 128011 && token != 128012))
+                throw std::invalid_argument("The prompt contains an unsupported control token.");
+        }
+    }
     engine.check();
     return tokens;
 }
@@ -260,6 +354,7 @@ Java_ai_krummholz_llm_NativeEngine_nativeLoadModel(
             throw std::invalid_argument("The local model is not a supported bounded GGUF file.");
         std::rewind(file.get());
         engine->model.reset(); // Never keep two resident models during replacement.
+        engine->protocol = ModelProtocol::None;
         llama_model_params params = llama_model_default_params();
         params.n_gpu_layers = 0;
         params.load_mode = LLAMA_LOAD_MODE_MMAP;
@@ -273,10 +368,11 @@ Java_ai_krummholz_llm_NativeEngine_nativeLoadModel(
             throw std::invalid_argument("This alpha supports decoder-only text models.");
         if (llama_model_n_ctx_train(loaded.get()) < contextTokens)
             throw std::invalid_argument("Requested context exceeds the model's trained context.");
-        validatePleiasTokenizer(loaded.get());
+        const ModelProtocol protocol = validateModelIdentity(loaded.get(), info.st_size);
         engine->contextTokens = contextTokens;
         engine->threads = threads;
         engine->model = std::move(loaded);
+        engine->protocol = protocol;
     } catch (...) { translateException(env); }
 }
 
@@ -344,11 +440,17 @@ Java_ai_krummholz_llm_NativeEngine_nativeGenerate(
             processBatch(*engine, context.get(), batch.get());
         }
         std::string output;
+        bool completed = false;
         for (int generated = 0; generated < maxTokens; ++generated) {
             engine->check();
             const llama_token token = llama_sampler_sample(sampler.get(), context.get(), -1);
-            if (llama_vocab_is_eog(vocab, token)) break;
-            output += tokenPiece(vocab, token); // true special-token rendering preserves Pleias markers.
+            if (llama_vocab_is_eog(vocab, token)) {
+                if (engine->protocol == ModelProtocol::SmolLm3Chat && token != 128012)
+                    throw std::runtime_error("The model used an unsupported completion boundary.");
+                completed = true;
+                break; // EOS is never part of the decoded JSON returned to Java.
+            }
+            output += tokenPiece(vocab, token); // Preserve protocol markers for the scoped parser.
             if (output.size() > kMaxOutputBytes)
                 throw std::runtime_error("Model output exceeded its byte limit.");
             if (progress != nullptr) {
@@ -356,11 +458,14 @@ Java_ai_krummholz_llm_NativeEngine_nativeGenerate(
                 if (env->ExceptionCheck()) throw JavaException();
             }
             engine->check();
-            if (output.find("<|answer_end|>") != std::string::npos || generated + 1 == maxTokens) break;
+            if ((engine->protocol == ModelProtocol::PleiasRag &&
+                 output.find("<|answer_end|>") != std::string::npos) || generated + 1 == maxTokens) break;
             fillBatch(batch.get(), &token, 1, needed + generated);
             processBatch(*engine, context.get(), batch.get());
         }
         engine->check();
+        if (engine->protocol == ModelProtocol::SmolLm3Chat && !completed)
+            throw std::runtime_error("The model reached its output limit before completing a response.");
         jbyteArray result = env->NewByteArray(static_cast<jsize>(output.size()));
         if (result == nullptr) throw JavaException();
         env->SetByteArrayRegion(result, 0, static_cast<jsize>(output.size()),

@@ -3,6 +3,7 @@ package ai.krummholz.llm;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Typeface;
@@ -29,8 +30,12 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutorService;
@@ -44,7 +49,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class MainActivity extends Activity {
     private static final int FOREST = 0xff10251f, CARD = 0xff1b352b, CREAM = 0xfff3eedd;
     private static final int MUTED = 0xffb4c5ba, LIME = 0xffc6d89b, LINE = 0xff3b5849;
-    private static final int IMPORT_MODEL = 71, CONTEXT = 4096, OUTPUT = 1024;
+    private static final int IMPORT_MODEL = 71, CONTEXT = 4096;
     private static final String[] KEYS = {"acadia", "katahdin", "atlantic"};
     private static final String[] NAMES = {"Acadia", "Katahdin", "Atlantic"};
     private static final String[] PURPOSES = {
@@ -70,7 +75,7 @@ public final class MainActivity extends Activity {
     private Job current;
     private Spinner profiles;
     private EditText sourceInput, questionInput;
-    private TextView modelStatus, operationStatus, purpose, answerText, answerNote;
+    private TextView modelStatus, modelHelp, operationStatus, purpose, answerText, answerNote;
     private LinearLayout citations;
     private Button downloadButton, importButton, reloadButton, askButton, cancelButton, clearButton, exampleButton;
     private ProgressBar progress;
@@ -130,7 +135,8 @@ public final class MainActivity extends Activity {
         importButton.setOnClickListener(v -> chooseModel()); margin(modelCard, importButton, 8, 10);
         reloadButton = button("Load saved model", false);
         reloadButton.setOnClickListener(v -> loadExisting()); modelCard.addView(reloadButton);
-        modelCard.addView(text("Download opens your browser. Import checks the exact model before use. After setup, inference works offline.", 12, MUTED, false));
+        modelHelp = text("Download opens your browser. Import checks the exact model before use. After setup, inference works offline.", 12, MUTED, false);
+        modelCard.addView(modelHelp);
 
         LinearLayout profileCard = card(body);
         profileCard.addView(text("02  /  CHOOSE A PROFILE", 11, LIME, true));
@@ -172,7 +178,7 @@ public final class MainActivity extends Activity {
         citations = column(); answerCard.addView(citations);
         answerNote = text("Citation checks match quoted words. They do not establish that the answer is correct.", 12, MUTED, false);
         answerCard.addView(answerNote);
-        margin(body, text("No action tools. No telemetry. No cloud fallback.\nPleias upstream baseline · local CPU inference", 12, MUTED, false), 6, 0);
+        margin(body, text("No action tools. No telemetry. No cloud fallback.\nUpstream baseline · local CPU inference", 12, MUTED, false), 6, 0);
         Button aboutButton = button("About & licenses", false);
         aboutButton.setOnClickListener(v -> showAbout()); margin(body, aboutButton, 12, 0);
 
@@ -191,10 +197,11 @@ public final class MainActivity extends Activity {
     private void showAbout() {
         if (aboutDialog != null && aboutDialog.isShowing()) return;
         StringBuilder content = new StringBuilder("Krummholz LLMs [ALPHA] · 0.1.0-alpha.1\n\n")
-            .append("Acadia, Katahdin and Atlantic are three workflows using one upstream Pleias RAG baseline. ")
+            .append("Acadia, Katahdin and Atlantic are three workflows using one upstream model. ")
             .append("This alpha does not include Krummholz-trained model weights.\n\n")
             .append("Inference runs on your phone. Source text, questions and answers are not saved to a history or backup. ")
             .append("The app has no network permission, telemetry or action tools.\n\n");
+        if (store != null) content.append("Bundled model specification: ").append(store.spec.name).append("\n\n");
         try {
             appendLicense(content, "NOTICE.txt");
             String[] files = getAssets().list("licenses");
@@ -239,22 +246,41 @@ public final class MainActivity extends Activity {
     private void chooseModel() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
             .setType("*/*").putExtra(Intent.EXTRA_LOCAL_ONLY, true)
+            .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, store != null && store.spec.hasMultipart())
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         try { startActivityForResult(intent, IMPORT_MODEL); }
         catch (ActivityNotFoundException error) { operationStatus.setText("This device has no file picker available."); }
     }
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == IMPORT_MODEL && resultCode == RESULT_OK && data != null && data.getData() != null && current == null)
-            importModel(data.getData());
+        if (requestCode != IMPORT_MODEL || resultCode != RESULT_OK || data == null || current != null || store == null) return;
+        try { importModels(modelUris(data)); }
+        catch (Protocol.ValidationException error) { operationStatus.setText(error.getMessage()); }
     }
 
-    private void importModel(Uri uri) {
+    /** Copy picker grants into an immutable job snapshot; model identity is checked by ModelStore. */
+    static List<Uri> modelUris(Intent data) {
+        if (data == null) throw new Protocol.ValidationException("Choose the downloaded model file or all its parts.");
+        List<Uri> selected = new ArrayList<>();
+        ClipData files = data.getClipData();
+        if (files != null) {
+            if (files.getItemCount() > 32) throw new Protocol.ValidationException("Select only the model files for this release.");
+            for (int index = 0; index < files.getItemCount(); index++) {
+                Uri uri = files.getItemAt(index).getUri();
+                if (uri == null) throw new Protocol.ValidationException("A selected item was not a file. Choose the downloaded model files.");
+                selected.add(uri);
+            }
+        } else if (data.getData() != null) selected.add(data.getData());
+        if (selected.isEmpty()) throw new Protocol.ValidationException("Choose the downloaded model file or all its parts.");
+        return Collections.unmodifiableList(new ArrayList<>(selected));
+    }
+
+    private void importModels(List<Uri> uris) {
         Job job = begin("Importing and verifying the model…");
         worker.execute(() -> {
             try {
                 final int[] lastPercent = {-1};
-                File file = store.importModel(uri, job.cancelled::get, bytes -> {
+                File file = store.importModels(uris, job.cancelled::get, bytes -> {
                     int percent = (int) (bytes * 100 / store.spec.bytes);
                     if (percent != lastPercent[0]) {
                         lastPercent[0] = percent;
@@ -289,25 +315,28 @@ public final class MainActivity extends Activity {
         if (!loaded || current != null || engine == null) return;
         final Protocol.Request request;
         final String prompt;
+        final String protocol = store.spec.protocol;
+        final int outputTokens;
         try {
             String profile = KEYS[profiles.getSelectedItemPosition()];
             request = Protocol.request(profile, questionInput.getText().toString(), Collections.singletonList(
                 new Protocol.Source(profile + "/workspace", sourceInput.getText().toString())));
-            prompt = Protocol.prompt(request, CONTEXT, OUTPUT);
+            outputTokens = ModelProtocol.outputTokens(protocol);
+            prompt = ModelProtocol.prompt(protocol, request, CONTEXT, LocalDate.now(ZoneOffset.UTC));
         } catch (Protocol.ValidationException error) { operationStatus.setText(error.getMessage()); return; }
         clearAnswer();
         Job job = begin("Reading the source on this phone…");
         worker.execute(() -> {
             try {
                 if (job.cancelled.get()) throw new CancellationException();
-                String raw = engine.generate(prompt, OUTPUT, count -> {
+                String raw = engine.generate(prompt, outputTokens, count -> {
                     if (job.cancelled.get()) { engine.cancel(); return; }
                     ui(job, () -> {
                         if (!job.cancelled.get()) operationStatus.setText("Working locally · " + count + " tokens generated");
                     });
                 });
                 if (job.cancelled.get()) throw new CancellationException();
-                Protocol.Answer answer = Protocol.parseAnswer(raw, request);
+                ModelProtocol.Answer answer = ModelProtocol.parse(protocol, raw, request);
                 ui(job, () -> { if (!job.cancelled.get()) { showAnswer(answer); operationStatus.setText("Answer ready for your review."); } });
             } catch (Exception error) { failed(job, error, "The local model could not complete this request. Try a shorter source."); }
             finally { finish(job); }
@@ -349,6 +378,12 @@ public final class MainActivity extends Activity {
         if (askButton == null) return;
         boolean busy = current != null;
         boolean provisioned = store != null && store.spec.approved && engine != null;
+        boolean multipart = store != null && store.spec.hasMultipart();
+        downloadButton.setText(multipart ? "Get model parts from GitHub" : "Get model from GitHub");
+        importButton.setText(multipart ? "Import all " + store.spec.parts.size() + " model parts" : "Import downloaded model");
+        modelHelp.setText(multipart
+            ? "Download all " + store.spec.parts.size() + " parts into Downloads. In the file picker, select them together. The app joins and verifies the model. After setup, inference works offline."
+            : "Download opens your browser. Import checks the exact model before use. After setup, inference works offline.");
         askButton.setEnabled(!busy && loaded && engine != null);
         importButton.setEnabled(!busy && provisioned);
         reloadButton.setVisibility(provisioned && store.hasModel() && !loaded ? View.VISIBLE : View.GONE);
@@ -366,11 +401,12 @@ public final class MainActivity extends Activity {
         answerText.setText("Your checked answer will appear here."); citations.removeAllViews();
         answerNote.setText("Citation checks match quoted words. They do not establish that the answer is correct.");
     }
-    private void showAnswer(Protocol.Answer answer) {
+    private void showAnswer(ModelProtocol.Answer answer) {
         // TextView renders plain text only: no HTML, links, Markdown, or raw reasoning.
         answerText.setText(answer.text); citations.removeAllViews();
-        for (Protocol.Citation citation : answer.citations) {
-            TextView label = text("[" + citation.number + "]  " + citation.sourceId, 12, LIME, true);
+        for (ModelProtocol.Citation citation : answer.citations) {
+            String number = answer.separateCitations ? citation.number + ".  " : "[" + citation.number + "]  ";
+            TextView label = text(number + citation.sourceId, 12, LIME, true);
             margin(citations, label, 8, 6);
             TextView quote = text("“" + citation.quote + "”", 14, CREAM, false);
             quote.setTextIsSelectable(true); margin(citations, quote, 0, 14);

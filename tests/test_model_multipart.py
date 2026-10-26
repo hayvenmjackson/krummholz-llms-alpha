@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -254,6 +255,18 @@ class MultipartTests(unittest.TestCase):
         target = self.output()
         run("assemble", "--manifest", receipt["manifest"], "--manifest-sha256", pin, "--output", target)
         self.assertEqual(target.read_bytes(), self.payload)
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFO behavior is POSIX-only")
+    def test_fifo_rejected_before_waiting_for_a_writer(self):
+        fifo = self.root / "untrusted-fifo"
+        os.mkfifo(fifo)
+        command = [sys.executable, "-B", "-c", (
+            "from tools.model_multipart import open_regular; import sys; "
+            "open_regular(sys.argv[1])"), str(fifo)]
+        result = subprocess.run(command, cwd=Path(multipart.__file__).resolve().parents[1],
+                                capture_output=True, text=True, timeout=3)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Expected a regular file", result.stderr)
 
 
 if __name__ == "__main__":

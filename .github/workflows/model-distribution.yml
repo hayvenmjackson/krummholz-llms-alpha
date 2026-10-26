@@ -44,7 +44,8 @@ jobs:
           pin = evidence['converted_model']
           app = json.loads(pathlib.Path('android/app/src/main/assets/model-manifest.json').read_text())
           assert all(app[k] == pin[k] for k in ('filename', 'bytes', 'sha256'))
-          source = root / 'verified-model' / pin['filename']
+          # The retained conversion artifact has gguf-work/ and gguf-reference/ roots.
+          source = root / 'verified-model' / 'gguf-work' / pin['filename']
           package = root / 'model-distribution-candidate'
           receipt = multipart.split(source, package, pin['bytes'], pin['sha256'], provenance=evidence)
           checked = multipart.verify(package / multipart.MANIFEST_NAME, receipt['manifest_sha256'])

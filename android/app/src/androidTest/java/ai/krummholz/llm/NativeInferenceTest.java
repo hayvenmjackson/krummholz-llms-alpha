@@ -8,10 +8,18 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.json.JSONObject;
+import org.json.JSONArray;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.File;
+import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.concurrent.CancellationException;
@@ -32,11 +40,16 @@ public final class NativeInferenceTest {
     private static final int THREADS = 2;
     private static final int CASE_TIMEOUT_SECONDS = 180;
     private static final String LOG_TAG = "KrummholzInferenceTest";
+    private static final LocalDate REFERENCE_DATE = LocalDate.of(2026, 10, 26);
+    private String protocol;
 
     @Test(timeout = 20 * 60 * 1000L)
     public void approvedModelCompletesProfilesUnicodeAndRecoversAfterCancellation() throws Exception {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         JSONObject manifest = TestModel.manifest(context);
+        protocol = manifest.getString("protocol");
+        assertTrue("Instrumentation requires an explicit supported protocol.",
+                "pleias-rag-v1".equals(protocol) || SmolLm3Protocol.ID.equals(protocol));
         long expectedBytes = manifest.getLong("bytes");
         String expectedHash = manifest.getString("sha256");
         File model = TestModel.provision(context, manifest);
@@ -65,28 +78,28 @@ public final class NativeInferenceTest {
 
             verifyPublisherTokenParity(engine, acadia, katahdin, atlantic);
 
-            Protocol.Answer first = complete(engine, acadia, "acadia-first", "30 days");
-            Protocol.Answer second = complete(engine, atlantic, "atlantic", "Paper Lantern");
+            CheckedAnswer first = complete(engine, acadia, "acadia-first", "30 days");
+            CheckedAnswer second = complete(engine, atlantic, "atlantic", "Paper Lantern");
             assertFalse("A later profile retained a previous fixture's fact.",
                     evidence(second).contains("30 days"));
-            Protocol.Answer third = complete(engine, katahdin, "katahdin", "90%");
+            CheckedAnswer third = complete(engine, katahdin, "katahdin", "90%");
             assertFalse("A later profile retained a previous fixture's fact.",
                     evidence(third).contains("paper lantern"));
-            Protocol.Answer repeated = complete(engine, acadia, "acadia-repeated", "30 days");
+            CheckedAnswer repeated = complete(engine, acadia, "acadia-repeated", "30 days");
             assertEquals("Greedy generation changed after unrelated profiles; inspect request/KV isolation.",
                     snapshot(first), snapshot(repeated));
 
             // Java-only verification can be cancelled while JNI is idle. Such a cancellation
             // belongs to that earlier job and must not poison this new, unrelated request.
             engine.cancel();
-            Protocol.Answer unicodeAnswer = complete(engine, unicode, "unicode-after-idle-cancel", "Café 🌲");
+            CheckedAnswer unicodeAnswer = complete(engine, unicode, "unicode-after-idle-cancel", "Café 🌲");
             assertFalse("Native output contained replacement characters.",
                     evidence(unicodeAnswer).contains("\uFFFD"));
 
             AtomicBoolean cancellationRequested = new AtomicBoolean();
             boolean cancelled = false;
             try {
-                generate(engine, Protocol.prompt(acadia, CONTEXT, OUTPUT), "cancelled", count -> {
+                generate(engine, prompt(acadia), "cancelled", count -> {
                     if (count > 0 && cancellationRequested.compareAndSet(false, true)) engine.cancel();
                 });
             } catch (CancellationException expected) {
@@ -95,13 +108,22 @@ public final class NativeInferenceTest {
             assertTrue("Cancellation must be requested during real token generation.",
                     cancellationRequested.get());
             assertTrue("A cancelled request must not return a displayable partial completion.", cancelled);
-            Protocol.Answer afterCancel = complete(engine, acadia, "acadia-after-cancel", "30 days");
+            CheckedAnswer afterCancel = complete(engine, acadia, "acadia-after-cancel", "30 days");
             assertEquals("Cancellation left state in the next request.", snapshot(first), snapshot(afterCancel));
+            if (SmolLm3Protocol.ID.equals(protocol)) {
+                // A syntactically plausible prefix is not a complete model answer: JNI
+                // must observe this model's real EOS, never accept budget truncation.
+                assertThrows(IllegalStateException.class, () -> engine.generate(prompt(acadia), 1, null));
+            }
         }
     }
 
-    private static void verifyPublisherTokenParity(NativeEngine engine, Protocol.Request acadia,
-                                                   Protocol.Request katahdin, Protocol.Request atlantic) {
+    private void verifyPublisherTokenParity(NativeEngine engine, Protocol.Request acadia,
+                                                   Protocol.Request katahdin, Protocol.Request atlantic) throws Exception {
+        if (SmolLm3Protocol.ID.equals(protocol)) {
+            verifySmolPublisherTokenParity(engine, acadia, katahdin, atlantic);
+            return;
+        }
         // Expected IDs are independently produced by the pinned HF tokenizers0.22.2
         // tokenizer.json (SHA256 dd7acf61196c61741cf95cc0f0a2b920443e44094438d325ab6e65a048fe8be4).
         // Recorded in Actions40315924744 framing-diagnostic.json; they are identical
@@ -138,6 +160,54 @@ public final class NativeInferenceTest {
         assertMalformedNativePromptRejected(engine, prompt.substring(0, prompt.length() - 1));
     }
 
+    private void verifySmolPublisherTokenParity(NativeEngine engine, Protocol.Request acadia,
+                                                Protocol.Request katahdin, Protocol.Request atlantic) throws Exception {
+        Context testContext = InstrumentationRegistry.getInstrumentation().getContext();
+        JSONObject evidence;
+        try (InputStream input = testContext.getAssets().open("smollm3-publisher-parity.json");
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096]; int count;
+            while ((count = input.read(buffer)) != -1) {
+                output.write(buffer, 0, count);
+                assertTrue("Tokenizer fixture unexpectedly large.", output.size() <= 128 * 1024);
+            }
+            evidence = new JSONObject(output.toString(StandardCharsets.UTF_8.name()));
+        }
+        assertEquals("a07cc9a04f16550a088caea529712d1d335b0ac1", evidence.getString("publisher_revision"));
+        assertEquals("7b6a500b662a34eb3f0374db856ba4ad7de4c81040571d78dc0d357238930005",
+                evidence.getString("tokenizer_sha256"));
+        Protocol.Request unicodeDigits = Protocol.request("atlantic",
+                "What's 123456789? café, naïve, 東京 🌲", Collections.emptyList());
+        Protocol.Request[] requests = {acadia, katahdin, atlantic, unicodeDigits};
+        String[] names = {"acadia", "katahdin", "atlantic", "unicode-digits"};
+        JSONObject fixtures = evidence.getJSONObject("fixtures");
+        for (int i = 0; i < requests.length; i++) {
+            JSONObject fixture = fixtures.getJSONObject(names[i]);
+            String rawPrompt = prompt(requests[i]);
+            assertEquals("Java must preserve the independent publisher prompt bytes.",
+                    fixture.getString("prompt"), rawPrompt);
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(rawPrompt.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hash = new StringBuilder();
+            for (byte value : digest) hash.append(String.format(Locale.ROOT, "%02x", value & 255));
+            assertEquals(fixture.getString("prompt_sha256"), hash.toString());
+            JSONArray ids = fixture.getJSONArray("input_token_ids");
+            int[] expected = new int[ids.length()];
+            for (int j = 0; j < ids.length(); j++) expected[j] = ids.getInt(j);
+            assertArrayEquals("SmolLM3 JNI tokens differ from the independent publisher tokenizer: " + names[i],
+                    expected, engine.tokenizeForTest(rawPrompt));
+        }
+        String rawPrompt = prompt(acadia);
+        assertMalformedNativePromptRejected(engine, "<|begin_of_text|>" + rawPrompt);
+        assertMalformedNativePromptRejected(engine, rawPrompt.substring(0, rawPrompt.length() - 1));
+        assertMalformedNativePromptRejected(engine, rawPrompt.replace("<|im_start|>user\n", "<|im_start|>assistant\n"));
+        assertMalformedNativePromptRejected(engine, rawPrompt.replace("How long", "<|end_of_text|>How long"));
+        for (String marker : new String[]{"<think>", "</think>", "<tool_response>", "</tool_response>",
+                "<tool_call>", "</tool_call>", "<code>", "</code>"}) {
+            assertMalformedNativePromptRejected(engine, rawPrompt.replace("How long", marker + "How long"));
+        }
+        assertMalformedNativePromptRejected(engine, Protocol.prompt(acadia, CONTEXT, OUTPUT));
+    }
+
     private static void assertMalformedNativePromptRejected(NativeEngine engine, String prompt) {
         try {
             engine.tokenizeForTest(prompt);
@@ -148,36 +218,63 @@ public final class NativeInferenceTest {
     }
 
     private static Protocol.Request request(String profile, String question, String source) {
+        String sourceId = "acadia".equals(profile) ? "acadia/demo-policy"
+                : "katahdin".equals(profile) ? "katahdin/demo-result" : "atlantic/demo-note";
         return Protocol.request(profile, question, Collections.singletonList(
-                new Protocol.Source(profile + "/instrumentation-fixture", source)));
+                new Protocol.Source(sourceId, source)));
     }
 
-    private static Protocol.Answer complete(NativeEngine engine, Protocol.Request request,
+    private int outputTokens() { return SmolLm3Protocol.ID.equals(protocol) ? 384 : OUTPUT; }
+
+    private String prompt(Protocol.Request request) {
+        return SmolLm3Protocol.ID.equals(protocol)
+                ? SmolLm3Protocol.qaPrompt(request, CONTEXT, outputTokens(), REFERENCE_DATE)
+                : Protocol.prompt(request, CONTEXT, outputTokens());
+    }
+
+    private static final class CheckedAnswer {
+        final String text, status;
+        final List<String> ids = new ArrayList<>(), quotes = new ArrayList<>();
+        CheckedAnswer(Protocol.Answer answer) {
+            text = answer.text; status = answer.status;
+            for (Protocol.Citation citation : answer.citations) { ids.add(citation.sourceId); quotes.add(citation.quote); }
+        }
+        CheckedAnswer(SmolLm3Protocol.Answer answer) {
+            text = answer.text; status = answer.status;
+            assertFalse("This supported fixture must not claim missing evidence.", answer.insufficientEvidence);
+            for (SmolLm3Protocol.Citation citation : answer.citations) { ids.add(citation.sourceId); quotes.add(citation.quote); }
+        }
+    }
+
+    private CheckedAnswer complete(NativeEngine engine, Protocol.Request request,
                                            String fixture, String requiredFact) throws Exception {
-        String raw = generate(engine, Protocol.prompt(request, CONTEXT, OUTPUT), fixture, count -> { });
-        Protocol.Answer answer;
+        String raw = generate(engine, prompt(request), fixture, count -> { });
+        CheckedAnswer answer;
         try {
-            answer = Protocol.parseAnswer(raw, request);
+            answer = SmolLm3Protocol.ID.equals(protocol)
+                    ? new CheckedAnswer(SmolLm3Protocol.parseQaAnswer(raw, request))
+                    : new CheckedAnswer(Protocol.parseAnswer(raw, request));
         } catch (Protocol.ValidationException failure) {
             throw new AssertionError("No complete, valid answer for actual-model fixture " + fixture
                     + ". Raw generation is deliberately omitted from logs.", failure);
         }
-        assertEquals("The parser must preserve the human-review status.", "needs_human_review", answer.status);
-        assertFalse("This supported fixture requires at least one literal source citation.", answer.citations.isEmpty());
-        for (Protocol.Citation citation : answer.citations) {
-            assertEquals("A citation crossed profile boundaries.", request.sources.get(0).id, citation.sourceId);
+        assertEquals("The parser must preserve its semantic verification limitation.",
+                SmolLm3Protocol.ID.equals(protocol) ? "semantic_review_not_performed" : "needs_human_review", answer.status);
+        assertFalse("This supported fixture requires at least one literal source citation.", answer.quotes.isEmpty());
+        for (int i = 0; i < answer.quotes.size(); i++) {
+            assertEquals("A citation crossed profile boundaries.", request.sources.get(0).id, answer.ids.get(i));
             assertTrue("A citation did not match the supplied fixture.",
-                    Protocol.quoteMatches(citation.quote, request.sources.get(0).text));
+                    Protocol.quoteMatches(answer.quotes.get(i), request.sources.get(0).text));
         }
         assertTrue("Actual inference did not recover the supplied fact for " + fixture + ".",
-                evidence(answer).contains(requiredFact.toLowerCase(Locale.ROOT)));
+                answer.text.toLowerCase(Locale.ROOT).contains(requiredFact.toLowerCase(Locale.ROOT)));
         assertFalse("Internal protocol tokens reached the displayed answer.", answer.text.contains("<|"));
         logEvent(new JSONObject().put("event", "validated_answer").put("fixture", fixture)
-                .put("citations", answer.citations.size()).put("status", answer.status));
+                .put("citations", answer.quotes.size()).put("status", answer.status));
         return answer;
     }
 
-    private static String generate(NativeEngine engine, String prompt, String fixture,
+    private String generate(NativeEngine engine, String prompt, String fixture,
                                    NativeEngine.ProgressListener progress) throws Exception {
         AtomicBoolean timedOut = new AtomicBoolean();
         AtomicInteger generated = new AtomicInteger();
@@ -188,7 +285,7 @@ public final class NativeInferenceTest {
             engine.cancel();
         }, CASE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         try {
-            String result = engine.generate(prompt, OUTPUT, count -> {
+            String result = engine.generate(prompt, outputTokens(), count -> {
                 generated.set(count);
                 progress.onProgress(count);
             });
@@ -208,16 +305,16 @@ public final class NativeInferenceTest {
         }
     }
 
-    private static String evidence(Protocol.Answer answer) {
+    private static String evidence(CheckedAnswer answer) {
         StringBuilder result = new StringBuilder(answer.text);
-        for (Protocol.Citation citation : answer.citations) result.append('\n').append(citation.quote);
+        for (String quote : answer.quotes) result.append('\n').append(quote);
         return result.toString().toLowerCase(Locale.ROOT);
     }
 
-    private static String snapshot(Protocol.Answer answer) {
+    private static String snapshot(CheckedAnswer answer) {
         StringBuilder result = new StringBuilder(answer.text);
-        for (Protocol.Citation citation : answer.citations)
-            result.append('\n').append(citation.sourceId).append(':').append(citation.quote);
+        for (int i = 0; i < answer.quotes.size(); i++)
+            result.append('\n').append(answer.ids.get(i)).append(':').append(answer.quotes.get(i));
         return result.toString();
     }
 

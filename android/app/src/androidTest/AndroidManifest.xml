@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries><package android:name="ai.krummholz.llm" /></queries>
     <application>
-        <!-- Test APK only: exposes an empty pipe and a bounded, cancellable open.
-             It never reads or serves production app files, model bytes or user data. -->
+        <!-- Test APK only: fixed synthetic parts, pipe/cancellation fixtures and an explicitly
+             registered read-only model descriptor. Caller UID is restricted to the instrumented
+             target app; there is no arbitrary path API and no provider in the production APK. -->
         <provider
             android:name="ai.krummholz.llm.ImportFixtureProvider"
             android:authorities="ai.krummholz.llm.test.import-fixtures"

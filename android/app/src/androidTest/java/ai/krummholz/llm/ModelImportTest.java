@@ -30,8 +30,9 @@ public final class ModelImportTest {
     public void rejectsPipeAndCancelsProviderOpenWithoutLosingPreviousModel() throws Exception {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         File weights = TestModel.provision(context, TestModel.manifest(context));
+        Uri modelUri = ImportFixtureProvider.registerModel(context, weights);
         ModelStore store = new ModelStore(context);
-        File previous = store.importModel(Uri.fromFile(weights), () -> false, bytes -> { });
+        File previous = store.importModel(modelUri, () -> false, bytes -> { });
         assertEquals(previous, store.verifiedModel(() -> false));
 
         try {
@@ -75,7 +76,7 @@ public final class ModelImportTest {
             worker.shutdownNow();
         }
         assertEquals("Cancelling a provider open lost the previous model.", previous, store.verifiedModel(() -> false));
-        File retry = store.importModel(Uri.fromFile(weights), () -> false, bytes -> { }, new CancellationSignal());
+        File retry = store.importModel(modelUri, () -> false, bytes -> { }, new CancellationSignal());
         assertEquals("A valid import could not recover after cancellation.", previous, retry);
         assertEquals(retry, store.verifiedModel(() -> false));
         File[] partials = previous.getParentFile().listFiles((directory, name) -> name.startsWith("import-") && name.endsWith(".partial"));

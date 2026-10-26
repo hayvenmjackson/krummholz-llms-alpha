@@ -58,7 +58,8 @@ def plain_path(value):
 
 def open_regular(path):
     path = plain_path(path)
-    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    flags = (os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+             | getattr(os, "O_NONBLOCK", 0))  # Reject FIFOs via fstat without blocking on open.
     fd = os.open(path, flags)
     if not stat.S_ISREG(os.fstat(fd).st_mode):
         os.close(fd)

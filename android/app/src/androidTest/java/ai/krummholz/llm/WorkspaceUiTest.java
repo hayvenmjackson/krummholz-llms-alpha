@@ -78,9 +78,9 @@ public final class WorkspaceUiTest {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         File weights = TestModel.provision(context, TestModel.manifest(context));
         ModelStore store = new ModelStore(context);
-        // Exercise the production import/verifier/atomic-activation implementation. File-picker UI
-        // remains a physical-device acceptance check; no fake provider or exported hook is added.
-        store.importModel(Uri.fromFile(weights), () -> false, bytes -> { });
+        // The test-APK provider receives only this explicitly registered read-only model descriptor.
+        // Production pin checks and the real content-provider import path stay in force.
+        store.importModel(ImportFixtureProvider.registerModel(context, weights), () -> false, bytes -> { });
         store.verifiedModel(() -> false);
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             await(scenario, activity -> activity.findViewById(R.id.ask_button).isEnabled(),
