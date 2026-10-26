@@ -15,6 +15,15 @@ from types import SimpleNamespace
 from tools import run_gpu_comparison as gpu
 
 
+def _fixture_stat_with_path_ctime(descriptor, path_info):
+    """Model Linux ctime identity for owned NTFS test fixtures only."""
+    if (descriptor.st_dev, descriptor.st_ino) != (path_info.st_dev, path_info.st_ino):
+        return descriptor
+    fields = {name: getattr(descriptor, name) for name in dir(descriptor) if name.startswith("st_")}
+    fields.update(st_ctime=path_info.st_ctime, st_ctime_ns=path_info.st_ctime_ns)
+    return SimpleNamespace(**fields)
+
+
 class FakeTokenizer:
     def __init__(self, text):
         self.text, self.calls = text, []
@@ -223,7 +232,36 @@ class GpuComparisonTests(unittest.TestCase):
         pin = {"bytes": len(data), "sha256": gpu.hashlib.sha256(data).hexdigest()}
         (root / "weights.safetensors").write_bytes(data)
         (root / "metadata.json").write_bytes(data)
+        if sys.platform == "win32":
+            # On this Python/NTFS combination fstat ctime is last-write time,
+            # while Path.stat ctime is creation time. Model Linux's consistent
+            # meaning only for this owned fixture; retain every other real
+            # descriptor field and leave the production/Linux guard untouched.
+            original_fstat = gpu.os.fstat
+            target = root / "weights.safetensors"
+            def fixture_fstat(fd):
+                descriptor = original_fstat(fd)
+                try:
+                    path_info = target.stat()
+                except FileNotFoundError:
+                    return descriptor
+                return _fixture_stat_with_path_ctime(descriptor, path_info)
+            patcher = patch.object(gpu.os, "fstat", side_effect=fixture_fstat)
+            patcher.start()
+            self.addCleanup(patcher.stop)
         return data, {"files": {"weights.safetensors": pin, "metadata.json": pin}}
+
+    def test_ntfs_fixture_normalization_preserves_other_descriptor_identity(self):
+        descriptor = SimpleNamespace(st_dev=1, st_ino=2, st_size=3, st_mode=4,
+                                     st_mtime_ns=500, st_ctime=6, st_ctime_ns=600)
+        path_info = SimpleNamespace(st_dev=1, st_ino=2, st_ctime=7, st_ctime_ns=700)
+        normalized = _fixture_stat_with_path_ctime(descriptor, path_info)
+        self.assertEqual(vars(normalized), {**vars(descriptor), "st_ctime": 7, "st_ctime_ns": 700})
+        changed = SimpleNamespace(**{**vars(descriptor), "st_mtime_ns": 501, "st_size": 9})
+        self.assertEqual(_fixture_stat_with_path_ctime(changed, path_info).st_mtime_ns, 501)
+        self.assertEqual(_fixture_stat_with_path_ctime(changed, path_info).st_size, 9)
+        other = SimpleNamespace(**{**vars(descriptor), "st_ino": 99})
+        self.assertIs(_fixture_stat_with_path_ctime(other, path_info), other)
 
     def test_cache_advice_verifies_same_readonly_file_before_sync_and_hint(self):
         with tempfile.TemporaryDirectory() as tmp:
