@@ -323,6 +323,17 @@ class GpuComparisonTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "regular file"):
                 gpu.release_verified_weight_cache(root, {"files": {"pipe.safetensors": model["files"]["weights.safetensors"]}},
                                                   time.monotonic() + 10)
+            # Replace an owned fixture between the path check and open. The
+            # descriptor check must reject it without blocking for a FIFO writer.
+            real_open = os.open
+            def raced_open(path, flags):
+                self.assertTrue(flags & os.O_NONBLOCK)
+                Path(path).unlink()
+                os.mkfifo(path)
+                return real_open(path, flags)
+            with patch.object(gpu.os, "open", side_effect=raced_open), \
+                 self.assertRaisesRegex(RuntimeError, "descriptor.*regular"):
+                gpu.release_verified_weight_cache(root, model, time.monotonic() + 10)
 
     def fake_valid_output(self):
         case = self.suite["cases"][0]

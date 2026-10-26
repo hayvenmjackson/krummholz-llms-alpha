@@ -230,7 +230,8 @@ def release_verified_weight_cache(work, model, deadline):
             raise RuntimeError("Per-file cache advice requires Linux posix_fadvise support")
         if time.monotonic() >= deadline:
             raise TimeoutError("Allocation expired before weight-cache verification")
-        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        flags = (os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_CLOEXEC", 0) |
+                 getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
         with os.fdopen(os.open(target, flags), "rb") as source:
             fd = source.fileno()
             before = os.fstat(fd)
