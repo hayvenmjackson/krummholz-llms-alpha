@@ -1,0 +1,5 @@
+# Preserve original pilot evidence bytes and the published SHA-256 identities.
+smollm3-pilot-review-2026-10-26.json -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+smollm3-pilot-review-validation-2026-10-26.json -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+smollm3-pilot-evidence-2026-10-26.json -text
+smollm3-multipart-2026-10-26/*.json -text

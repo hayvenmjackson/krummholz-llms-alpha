@@ -17,12 +17,18 @@ public-domain text and evaluations for using tools and looking things up instead
 of confidently guessing. That training has not happened yet, and the current app
 does not browse the web.
 
-The larger model has cleared its first source-answer checks, and we've verified
-that its native conversion preserves every tensor value. We also found and
-fixed a tool-format mismatch in the test harness. That made it choose search
-when it should, but one answer still needed better citation coverage. The
-36-case evaluation is running now. A promising test is a reason to keep going,
-not a reason to skip the next test.
+The next test gave us a clear answer: SmolLM3 3B isn't good enough for this release.
+It passed 12 of 36 cases in independent agent review. The other 24 failed, with
+problems ranging from invalid output to reversed times, missing conditions and
+following a malicious instruction in a source. We'd already fixed the integration
+issues and verified that the native conversion preserved every tensor value.
+Those fixes mattered, but they didn't solve the model's answer-quality problems.
+
+We're keeping the failed results public and preparing an unquantized GPU
+comparison of Olmo 3 7B Instruct and Qwen3 8B. Neither has earned a release yet.
+The Android work continues too, including importing large model downloads in
+verified parts. I want something useful in people's hands, and this is the work
+it takes to get there.
 
 Our first public-domain intake is also complete: six documents downloaded, with
 30 carefully reviewed passages retained from five. It's a small starting point,

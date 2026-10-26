@@ -2,18 +2,18 @@
 
 **Draft guide for 0.1.0-alpha.1 (build 1). Source compilation passes; model, device and release validation are pending.** The checked-in development model manifest is unprovisioned, so its setup buttons remain disabled until the release build contains the approved model details. The install steps below apply once that verified release is available.
 
-The app is a small workspace for asking questions about a passage you supply. Acadia, Katahdin and Atlantic are three workflows. The initial upstream Pleias candidates failed quality review, and a replacement is being evaluated. This alpha does not contain separately trained Krummholz models.
+The app is a small workspace for asking questions about a passage you supply. Acadia, Katahdin and Atlantic are three workflows. The initial upstream Pleias candidates and the later SmolLM3 3B candidate failed quality review. Larger original-BF16 comparisons are being prepared. This alpha does not contain separately trained Krummholz models.
 
 ## Install on your Samsung S26
 
 Once the verified alpha is published:
 
 1. Open the [official GitHub releases page](https://github.com/hayvenmjackson/krummholz-llms-alpha/releases) in your phone's browser and download the alpha APK. Open the completed download to install it. If Android asks for permission to install from that browser, follow its installation prompt.
-2. Open **Krummholz LLMs [ALPHA]**. Tap **Get model from GitHub** to download the separate model file in your browser. Wait for the download to finish.
-3. Return to the app, tap **Import downloaded model**, and choose the completed `.gguf` file from local Downloads. The app checks its exact size and SHA-256 hash before loading it.
+2. Open **Krummholz LLMs [ALPHA]**. Use its model download button to open the project's release in your browser. If the release provides parts, download every part into local Downloads and keep their original filenames. Otherwise, download the single model file. Wait for all downloads to finish.
+3. Return to the app and use its import button. For a multipart release, select all the model parts together; their selection order does not matter. For a single file, choose the completed `.gguf`. The app joins parts when needed and checks their exact sizes and hashes, plus the complete model hash, before loading it.
 4. Wait for **Verified and ready · runs on this phone**. You can then use the workspace offline.
 
-There are two downloads: the APK and the approved model. No ADB, developer options, computer connection or Wi-Fi pairing is required. Leave room for both the downloaded model and the app's private imported copy. The app accepts the exact approved model for that build; another GGUF cannot be substituted.
+The APK and model are separate downloads; a model may consist of several files. No ADB, developer options, computer connection or Wi-Fi pairing is required. Leave room for both the downloaded model and the app's private imported copy. The app accepts the exact approved model for that build; another GGUF cannot be substituted. Current multipart infrastructure has no approved release model attached to it.
 
 ## Try your first question
 

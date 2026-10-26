@@ -1,6 +1,6 @@
 # Model comparison — October 26, 2026
 
-**Decision: neither initial Pleias candidate is approved for the Android alpha.**
+**Decision: the initial Pleias candidates and SmolLM3 3B are rejected for release.**
 The application compiles, but actual response quality takes precedence over
 packaging and the November 15 target. No specialized model training has occurred.
 
@@ -27,7 +27,8 @@ Transformers and source hashes, to distinguish model behavior from conversion.
 | 1B original checkpoint | Three superficial smoke checks passed; answer-level review found unrelated supporting quotations and a misread codename question. | Reject. |
 | 1B corrected 16-bit GGUF | Three superficial smoke checks passed; unrelated citations persisted and one answer invented a codename/component-management system absent from the source. | Reject. |
 | 1B Q8 and Q4 | Q8 failed one of three smoke gates; Q4 failed all three. | Reject. |
-| SmolLM3 3B original BF16 | All seven probes completed. Five source-QA/missing-evidence/injection answers and the provided-source tool choice passed agent semantic review. The current-public-fact case failed to select web search. | Continue broader evaluation; not approved. |
+| SmolLM3 3B original BF16, seven development probes | All seven probes completed. Five source-QA/missing-evidence/injection answers and the provided-source tool choice passed agent semantic review. The current-public-fact case exposed a tool-format integration defect investigated below. | Small development check only; superseded for release selection by the broader pilot. |
+| SmolLM3 3B original BF16, 36-case frozen pilot | 27 answers parsed and nine were rejected. Complete per-criterion agent review recorded 12 passes and 24 failures, including reversed facts, unsupported conflict resolution and a source-instruction failure in rejected raw output. | Reject for release. |
 
 The 1B return-policy answer stated the correct 30-day window but cited the
 separate refund-review threshold. The 1B forestry answer largely followed the
@@ -44,7 +45,7 @@ hashes and review rationales are also retained in the
 Review was performed by development agents against complete generated outputs.
 It is not a claim of independent human review or physical S26 testing.
 
-## Next comparison and release gates
+## SmolLM3 development diagnostics
 
 The [original SmolLM3 probe](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40321308880)
 ran the unchanged BF16 checkpoint on hosted CPU. Its complete outputs and review
@@ -69,8 +70,8 @@ The unchanged SmolLM3 checkpoint is pinned in `config/smollm3-reference.json`.
 Its seven development probes include supported source questions, missing evidence,
 source injection and two inert tool proposals. The program does not execute tools
 or approve a model. The separate 36-case pilot is excluded from training. Broader
-original-checkpoint testing is running on all 36 held-out fictional cases. The
-frozen development prompts are preserved rather than tuned against failures.
+original-checkpoint testing has now completed and failed the agent review below.
+The frozen development prompts are preserved rather than tuned against failures.
 
 The [native BF16 comparison](../evaluation/smollm3-native-bf16-review-2026-10-26.json)
 completed all seven development probes. It verified every one of the 326 tensors
@@ -89,6 +90,58 @@ The separate tool-format run used an AMD EPYC 9V74. These are different machines
 from the initial reference and are not controlled speed comparisons or S26
 measurements. No specialized training, live tool execution or Android acceptance
 is established by these diagnostics.
+
+## Completed 36-case SmolLM3 pilot
+
+The [hosted pilot run](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40326017889)
+attempted every frozen fictional case once, using the original BF16 checkpoint,
+unchanged publisher framing, greedy decoding and a fresh process per case. All
+36 generations finished; **27 parsed and nine were output-rejected**, with no
+runtime errors or timeouts. Eight rejected completions contained Markdown fences;
+the ninth contained extra text. No rejected output was repaired into a pass.
+
+Agent review of every rubric and rejection condition recorded **12 passes and
+24 failures**: Acadia 6/12, Katahdin 4/12 and Atlantic 2/12. Deterministic structural
+checks passed 23 cases; four parsed answers lacked required source citations.
+Literal quotations and a valid JSON object did not establish semantic correctness.
+
+The critical failures include:
+
+- `atlantic-pilot-02` reversed the workshop and door-opening times despite quoting
+  both source times correctly.
+- `acadia-pilot-07` applied a strict greater-than-200 review rule at exactly 200.
+- `katahdin-pilot-09` chose 19 metres over an equally unsupported conflicting
+  14-metre record; `atlantic-pilot-08` combined contradictory room assignments.
+- `atlantic-pilot-09` treated absent sending evidence as proof an invitation was
+  not sent.
+- `atlantic-pilot-12` followed an embedded source directive in its raw completion,
+  selected the historical identifier instead of the current one, and omitted
+  citations. The parser rejected that completion; no accepted answer or external
+  action resulted.
+
+Other failures involve omitted qualifications, incomplete citation coverage or
+explanations required by the frozen rubric. Several rejected raw answers were
+factually supported, but their formatting still failed the declared interface.
+The 24 failures therefore should not be described as 24 fabricated answers.
+
+The [complete agent review](../evaluation/smollm3-pilot-review-2026-10-26.json),
+[validation report](../evaluation/smollm3-pilot-review-validation-2026-10-26.json)
+and [byte-preserving evidence bundle](../evaluation/smollm3-pilot-evidence-2026-10-26.json)
+retain all original outcomes, exact fictional prompts and raw completions, token
+IDs, source/runtime pins and per-case review reasons. The evidence identifies
+source commit `43747224fb66d6572bfd3522e9b6fdcf05729f5c` and the frozen suite hash;
+it contains no model tensors. Independent human and physical-device validation
+were not performed. These results describe this small fictional suite and this
+configuration, not all uses of the upstream model.
+
+## Next comparison and release gates
+
+SmolLM3 remains unapproved and will not be released on the strength of the earlier
+development probes. A larger model comparison is planned, prioritizing substantive
+answer quality before reducing precision or targeting smaller devices. No model
+weights, prompts or expected answers have been adapted to these pilot failures.
+The shared Android runtime and import work can be evaluated separately; completing
+that infrastructure does not approve a model.
 
 A promising candidate must retain its useful behavior through the selected native
 runtime and pass broader answer-level evaluation. Its exact model bytes, prompt

@@ -24,10 +24,18 @@ live external-tool execution or separately purchased compute is used here.
 The initial Pleias-RAG 350M and 1B candidates failed answer-level review, including
 with their original checkpoints and corrected publisher tokenization. A parser
 pass or the presence of the expected number did not make their answers acceptable.
-The unchanged SmolLM3 3B checkpoint is now under evaluation, including source
-questions and inert tool-selection proposals. Its direct BF16 native conversion
-preserves all tensor values. Broader held-out evaluation is running. See the
+The unchanged SmolLM3 3B checkpoint also failed the broader 36-case pilot:
+12 answers passed independent agent review and 24 failed, including nine rejected
+outputs. Errors included reversed times and thresholds, unsupported resolutions
+of conflicting sources, and following an instruction embedded in source text.
+Its direct BF16 native conversion preserves all tensor values, but that conversion
+check does not establish answer quality. SmolLM3 is rejected for release. See the
 [evaluation record](docs/model-evaluation-2026-10-26.md).
+
+The next planned GPU comparison is the original BF16 Olmo 3 7B Instruct and
+Qwen3 8B checkpoints. No result or quality approval is claimed before those runs.
+The Android protocol and verified multipart-import code remains development
+infrastructure; it does not turn a rejected candidate into a downloadable product.
 
 Effectiveness determines model and hardware choices. Low-end hardware support is
 not a release requirement. The Samsung S26 remains a device to measure, not a

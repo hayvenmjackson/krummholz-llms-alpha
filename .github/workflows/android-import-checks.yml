@@ -1,0 +1,242 @@
+name: Android synthetic import checks
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ggml-org/llama.cpp
+          ref: 620d2225cc436ab0b001e3200e590e3b286ef9ab
+          path: android/third_party/llama.cpp
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          log-accepted-android-sdk-licenses: false
+      - name: Install matching pinned Android build tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+      - name: Build real native and Java code with an ephemeral test-only key
+        timeout-minutes: 28
+        run: |
+          set -euo pipefail
+          test "$(git -C android/third_party/llama.cpp rev-parse HEAD)" = 620d2225cc436ab0b001e3200e590e3b286ef9ab
+          # No release signing secret or model artifact is used by this workflow.
+          umask 077
+          key="$RUNNER_TEMP/import-checks-test-only.jks"
+          test ! -e "$key" && test ! -L "$key"
+          trap 'rm -f -- "$key"' EXIT
+          keytool -genkeypair -keystore "$key" -storetype JKS -alias import-checks \
+            -keyalg RSA -keysize 2048 -validity 2 -storepass android -keypass android \
+            -dname "CN=Ephemeral synthetic import checks"
+          mkdir -p "$RUNNER_TEMP/import-test-build"
+          keytool -exportcert -keystore "$key" -alias import-checks -storepass android \
+            | sha256sum | cut -d' ' -f1 > "$RUNNER_TEMP/import-test-build/test-signer-sha256.txt"
+          sha256sum android/app/src/main/assets/model-manifest.json > "$RUNNER_TEMP/embedded-manifest-before.sha256"
+          chmod +x android/gradlew
+          android/gradlew -p android --no-daemon --console=plain --max-workers=2 \
+            "-Pandroid.injected.signing.store.file=$key" \
+            "-Pandroid.injected.signing.store.password=android" \
+            "-Pandroid.injected.signing.key.alias=import-checks" \
+            "-Pandroid.injected.signing.key.password=android" \
+            "-Pandroid.injected.signing.store.type=JKS" \
+            :app:testReleaseUnitTest :app:assembleRelease :app:assembleReleaseAndroidTest :app:lintRelease
+          sha256sum --check "$RUNNER_TEMP/embedded-manifest-before.sha256"
+          cp android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/import-test-build/app-under-test.apk"
+          cp android/app/build/outputs/apk/androidTest/release/app-release-androidTest.apk "$RUNNER_TEMP/import-test-build/instrumentation.apk"
+      - name: Verify temporary APK identity, no model payload and 16KB alignment
+        run: |
+          python -B - <<'PY'
+          import hashlib,json,os,pathlib,re,struct,subprocess,zipfile
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'import-test-build'
+          tools=pathlib.Path(os.environ['ANDROID_HOME'])/'build-tools/35.0.0'
+          signer=(root/'test-signer-sha256.txt').read_text().strip()
+          assert re.fullmatch('[0-9a-f]{64}',signer)
+          assert signer != 'a597e224548e8aef87a825ccda56bac2036ab183aca1d26e486661ae92542ccb'
+          expected=pathlib.Path('android/app/src/main/assets/model-manifest.json').read_bytes()
+          assert not list(pathlib.Path('android/app/src').rglob('*.gguf'))
+          def run(tool,*args):
+              return subprocess.check_output([str(tools/tool),*args],text=True,stderr=subprocess.STDOUT,timeout=120)
+          apks=[]
+          for filename,package in [('app-under-test.apk','ai.krummholz.llm'),('instrumentation.apk','ai.krummholz.llm.test')]:
+              path=root/filename
+              signed=run('apksigner','verify','--verbose','--print-certs',str(path))
+              assert 'Number of signers: 1' in signed
+              assert re.findall(r'certificate SHA-256 digest: ([0-9a-fA-F]{64})',signed)==[signer]
+              assert "package: name='"+package+"'" in run('aapt','dump','badging',str(path))
+              manifest=run('aapt','dump','xmltree',str(path),'AndroidManifest.xml')
+              fixture_provider='ai.krummholz.llm.ImportFixtureProvider'
+              if package=='ai.krummholz.llm':
+                  assert fixture_provider not in manifest and 'test.import-fixtures' not in manifest
+              else:
+                  assert fixture_provider in manifest and 'ai.krummholz.llm.test.import-fixtures' in manifest
+              run('zipalign','-c','-P','16','4',str(path))
+              libraries=[]
+              with zipfile.ZipFile(path) as archive:
+                  names=archive.namelist()
+                  assert not any(n.lower().endswith(('.gguf','.safetensors','.keystore','.jks')) for n in names)
+                  if package=='ai.krummholz.llm':
+                      assert archive.read('assets/model-manifest.json')==expected, 'Build changed model pins/approval'
+                      assert 'uses-permission:' not in run('aapt','dump','permissions',str(path))
+                      for abi in ('arm64-v8a','x86_64'):
+                          assert f'lib/{abi}/libkrummholz_llm.so' in names
+                  for name in names:
+                      if not name.startswith('lib/') or not name.endswith('.so'): continue
+                      data=archive.read(name)
+                      assert data[:6]==b'\x7fELF\x02\x01'
+                      offset=struct.unpack_from('<Q',data,32)[0]
+                      entry_size,count=struct.unpack_from('<HH',data,54)
+                      alignments=[]
+                      for index in range(count):
+                          entry=struct.unpack_from('<IIQQQQQQ',data,offset+index*entry_size)
+                          if entry[0]==1: alignments.append(entry[7])
+                      assert alignments and min(alignments)>=16384, name
+                      libraries.append({'path':name,'load_alignments':alignments})
+              with path.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
+              apks.append({'filename':filename,'bytes':path.stat().st_size,'sha256':digest,'package':package,'libraries':libraries})
+          report={'test_only':True,'published_apk':False,'release_authorized':False,'model_weights_downloaded':False,
+                  'model_approval_modified':False,'test_provider_absent_from_production_apk':True,
+                  'embedded_manifest_sha256':hashlib.sha256(expected).hexdigest(),
+                  'source_commit':os.environ['GITHUB_SHA'],'llama_commit':'620d2225cc436ab0b001e3200e590e3b286ef9ab',
+                  'signer_sha256':signer,'apks':apks}
+          (root/'build-evidence.json').write_text(json.dumps(report,indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-import-test-build
+          path: ${{ runner.temp }}/import-test-build/
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-import-build-reports
+          path: |
+            android/app/build/reports/
+            android/app/build/test-results/
+          retention-days: 14
+
+  emulator:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: google_apis
+            page_size: 4096
+          - image: google_apis_ps16k
+            page_size: 16384
+    env:
+      TEST_CLASSES: ai.krummholz.llm.ModelMultipartImportTest,ai.krummholz.llm.ModelPickerSelectionTest
+      EXPECTED_PAGE_SIZE: ${{ matrix.page_size }}
+    steps:
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          log-accepted-android-sdk-licenses: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-import-test-build
+          path: apk
+      - name: Verify build artifact hashes before installation
+        run: |
+          python -B - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('apk')
+          report=json.loads((root/'build-evidence.json').read_text())
+          assert report['test_only'] and not report['release_authorized'] and not report['model_weights_downloaded']
+          assert {row['filename'] for row in report['apks']}=={'app-under-test.apk','instrumentation.apk'}
+          for row in report['apks']:
+              path=root/row['filename']
+              with path.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
+              assert path.stat().st_size==row['bytes'] and digest==row['sha256']
+          PY
+      - name: Enable hosted runner KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Start official API36 emulator without model weights
+        timeout-minutes: 12
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          sdkmanager "emulator" "platform-tools" "system-images;android-36;$IMAGE;x86_64"
+          echo no | avdmanager create avd -n import-checks -k "system-images;android-36;$IMAGE;x86_64" --force
+          "$ANDROID_HOME/emulator/emulator" -avd import-checks -no-window -no-audio -no-boot-anim -no-snapshot \
+            -gpu swiftshader_indirect -memory 3072 -partition-size 4096 > emulator-boot.log 2>&1 &
+          timeout 180 adb wait-for-device
+          timeout 180 sh -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
+          adb shell input keyevent 82
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+      - name: Run only synthetic multipart-provider and picker tests
+        timeout-minutes: 7
+        run: |
+          set -euo pipefail
+          actual=$(adb shell getconf PAGE_SIZE | tr -d '\r')
+          test "$actual" = "$EXPECTED_PAGE_SIZE"
+          adb install apk/app-under-test.apk
+          adb install -t apk/instrumentation.apk
+          adb logcat -c
+          timeout 300 adb shell am instrument -w -r -e class "$TEST_CLASSES" \
+            ai.krummholz.llm.test/androidx.test.runner.AndroidJUnitRunner | tee instrumentation.txt
+          python -B - <<'PY'
+          import json,os,pathlib,re
+          text=pathlib.Path('instrumentation.txt').read_text()
+          expected=set(os.environ['TEST_CLASSES'].split(','))
+          actual=set(re.findall(r'^INSTRUMENTATION_STATUS: class=([^\r\n]+)',text,re.M))
+          assert actual==expected, 'Unexpected or missing instrumentation class'
+          assert re.search(r'^OK \(11 tests\)',text,re.M), 'All seven provider and four picker tests must run'
+          assert not re.search(r'FAILURES!!!|INSTRUMENTATION_FAILED|Process crashed',text)
+          pathlib.Path('test-evidence').mkdir(exist_ok=True)
+          pathlib.Path('test-evidence/result.json').write_text(json.dumps({
+              'test_only':True,'classes':sorted(actual),'tests_passed':11,
+              'page_size':int(os.environ['EXPECTED_PAGE_SIZE']),'model_inference_performed':False,
+              'model_quality_accepted':False,'release_authorized':False},indent=2)+'\n')
+          PY
+      - name: Preserve diagnostics and stop this emulator
+        if: always()
+        run: |
+          mkdir -p test-evidence
+          timeout 15 adb shell getconf PAGE_SIZE > test-evidence/page-size.txt 2>&1 || true
+          timeout 15 adb shell dumpsys meminfo ai.krummholz.llm > test-evidence/memory.txt 2>&1 || true
+          timeout 15 adb logcat -d -b crash > test-evidence/crashes.txt 2>&1 || true
+          cp apk/build-evidence.json test-evidence/ 2>/dev/null || true
+          timeout 15 adb emu kill || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-import-${{ matrix.page_size }}-evidence
+          path: |
+            instrumentation.txt
+            emulator-boot.log
+            test-evidence/
+          if-no-files-found: error
+          retention-days: 14

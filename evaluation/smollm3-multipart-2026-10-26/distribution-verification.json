@@ -1,0 +1,18 @@
+{
+  "source_run_id": "40324601321",
+  "packaging_commit": "2e61d2798567e23e54c3263b15474286197cb23a",
+  "model": {
+    "filename": "SmolLM3-3B-BF16.gguf",
+    "bytes": 6158339904,
+    "sha256": "8bb048dbbc726c8e10bdf41575f5209b9b68a27b0ec15390b5031846047cec9b",
+    "converter_commit": "620d2225cc436ab0b001e3200e590e3b286ef9ab",
+    "quantization_performed": false,
+    "tensor_values_verified_by_conversion_run": true,
+    "evidence_run": "https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40324601321"
+  },
+  "manifest_sha256": "a5ef740ac0b53647c3aaf739b9048621f7aabff1ba24eb0f1ed65c3fc0103fb4",
+  "all_parts_and_whole_verified": true,
+  "quality_accepted": false,
+  "release_authorized": false,
+  "model_inference_performed": false
+}

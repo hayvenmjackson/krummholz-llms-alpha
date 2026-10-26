@@ -1,6 +1,8 @@
 # Byte-preserving distribution of the BF16 candidate
 
-Prepared 26 October 2026. Tooling is implemented and tested with small synthetic files. **No model was packaged, uploaded, approved for release or imported into Android by this task.**
+Updated 26 October 2026. Tooling passes synthetic tests and the complete 6,158,339,904-byte candidate was split and verified in [hosted run 40330434497](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40330434497). This is an infrastructure check: **SmolLM3 failed the separate 36-case quality pilot and is rejected for release. No model is approved or published as a product, and full-size Android import has not been tested.**
+
+The first packaging run, [40327426738](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40327426738), failed because the workflow expected the retained artifact's model at the wrong directory level. The corrected run found the model under `gguf-work/`, verified all four parts and their combined whole-file hash, and retained temporary CI artifacts. [The exact manifest](../evaluation/smollm3-multipart-2026-10-26/multipart-manifest.json) has SHA256 `a5ef740ac0b53647c3aaf739b9048621f7aabff1ba24eb0f1ed65c3fc0103fb4`; the [verification report](../evaluation/smollm3-multipart-2026-10-26/distribution-verification.json) records the source and packaging commits. The downloaded metadata ZIP was checked against GitHub's artifact digest `30bec76adab28882e46d5749c2adef9f1669e9015abb54058f65013244f9654c` (artifact 12654312237).
 
 The verified conversion candidate is `SmolLM3-3B-BF16.gguf`, **6,158,339,904 bytes**, SHA256 `8bb048dbbc726c8e10bdf41575f5209b9b68a27b0ec15390b5031846047cec9b`. Its [conversion evidence](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40324601321) records unchanged tensor values, BF16/F32 tensors and no quantization. Multipart packaging concatenates the same bytes; it does not change precision or model behavior.
 
@@ -17,7 +19,7 @@ The verified conversion candidate is `SmolLM3-3B-BF16.gguf`, **6,158,339,904 byt
 
 Publish the manifest and license/attribution/conversion information alongside the four parts only after the separate release gates pass. Record the exact manifest SHA256 in the trusted release metadata and eventual signed app. Per-part hashes alone are insufficient: the tool also checks the whole file and the manifest itself.
 
-A single file in a Krummholz-controlled Hugging Face model repository is a simpler future phone download/import path. [Hugging Face's current official storage guidance](https://huggingface.co/docs/hub/en/storage-limits) supports files much larger than this candidate, but account quota and access must be checked before choosing that route. Public free storage is best effort; no paid plan or free capacity is assumed. Pin the host repository's immutable commit, exact filename, byte size and SHA256. Do not treat an arbitrary community reupload as the verified conversion. Nothing was uploaded or provisioned here.
+A single file in a Krummholz-controlled Hugging Face model repository is a simpler future phone download/import path. [Hugging Face's current official storage guidance](https://huggingface.co/docs/hub/en/storage-limits) supports files much larger than this candidate, but account quota and access must be checked before choosing that route. Public free storage is best effort; no paid plan or free capacity is assumed. Pin the host repository's immutable commit, exact filename, byte size and SHA256. Do not treat an arbitrary community reupload as the verified conversion. No Hugging Face hosting was provisioned.
 
 ## Pinned license evidence
 

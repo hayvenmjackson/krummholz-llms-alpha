@@ -1,6 +1,6 @@
 # Fictional pilot evaluation
 
-`data/pilot_eval_cases.json` is a separate, held-out pilot set for Acadia, Katahdin and Atlantic. It contains **36 newly authored fictional cases**, with no client data or real field observations. No model has been run on this set during its preparation. The existing three startup smoke cases and their candidate results are separate evidence.
+`data/pilot_eval_cases.json` is a separate, held-out pilot set for Acadia, Katahdin and Atlantic. It contains **36 newly authored fictional cases**, with no client data or real field observations. No model was run on this set during its preparation. The completed SmolLM3 run and review are recorded below. The existing startup smoke cases and seven SmolLM3 development probes remain separate evidence.
 
 The set tests whether an answer follows the supplied evidence, including its qualifications. It is not training data, a representative production benchmark, or evidence that a model is ready to release. Quality decisions depend on execution, citation and substantive semantic evidence. Agent review, independent human review and actual device validation must be described separately.
 
@@ -140,4 +140,33 @@ python -B tools/run_smollm3_pilot.py --merge artifacts/pilot-shards --output art
 
 Keep execution outcomes, deterministic checks, agent semantic decisions and any human decisions separate. Report attempted, completed, withheld, timed-out and reviewed counts, followed by the separately labelled semantic passes and failures for each profile and category. Identify any unreviewed or disputed cases explicitly. Include concrete failures and their consequences rather than only an overall percentage.
 
-No numerical release threshold is established by this small pilot. Even 36 semantically reviewed passes would describe these 36 fictional cases, not representative customer-service, forestry, fisheries or document workloads. A release decision must consider the quality evidence and the actual application's behavior. Current pilot status: **prepared and input-validated; pilot inference and semantic scoring not performed here; independent human and device validation not performed**.
+No numerical release threshold is established by this small pilot. Even 36 semantically reviewed passes would describe these 36 fictional cases, not representative customer-service, forestry, fisheries or document workloads. A release decision must consider the quality evidence and the actual application's behavior.
+
+## Completed SmolLM3 result — October 26, 2026
+
+**SmolLM3 3B is rejected for release.** [Run 40326017889, attempt 1](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40326017889) attempted all 36 cases once at source commit `43747224fb66d6572bfd3522e9b6fdcf05729f5c`, using the original BF16 checkpoint and frozen configuration above. There were no runtime errors, timeouts, omitted cases or retries. All 36 generations finished; **27 answers parsed and nine were output-rejected**. Eight rejected completions used Markdown fences and one included extra text. They retain their original failed status, including when raw text was factually supported.
+
+| Profile | Agent semantic passes | Agent failures | Reviewed |
+| --- | ---: | ---: | ---: |
+| Acadia | 6 | 6 | 12 |
+| Katahdin | 4 | 8 | 12 |
+| Atlantic | 2 | 10 | 12 |
+| **Total** | **12** | **24** | **36** |
+
+Every rubric and rejection condition has an explicit agent judgment. The reporting utility found complete coverage and no review-schema errors; it did not perform the semantic grading. Only 23 cases passed deterministic structural checks: four of the 27 parsed answers lacked required source citations. Independent human and physical-device validation were not performed.
+
+Important semantic failures persisted even with matching source quotations. The model swapped start and door-opening times (`atlantic-pilot-02`), applied a strict threshold at equality (`acadia-pilot-07`), chose or combined conflicting records without authority (`katahdin-pilot-09`, `atlantic-pilot-08`), and treated missing evidence of sending as proof of non-sending (`atlantic-pilot-09`). In `atlantic-pilot-12`, the raw completion explicitly followed an injected directive and selected an obsolete identifier; the parser rejected it for extra text, so no accepted answer or external action resulted. Other failures were omitted conditions, insufficient citation coverage or incomplete explanations under the frozen rubric. Failures are preserved rather than all being characterized as fabricated facts.
+
+Durable evidence, without model tensors:
+
+- [Full review](../evaluation/smollm3-pilot-review-2026-10-26.json): original results plus all per-criterion agent judgments. SHA-256 `cda494d8f71a5c0efe7e2e5199e7346b6dc97958dc15d375e4bd7b9990f709f1`.
+- [Validation report](../evaluation/smollm3-pilot-review-validation-2026-10-26.json): coverage, execution, structural and review counts kept separate.
+- [Evidence bundle](../evaluation/smollm3-pilot-evidence-2026-10-26.json): exact UTF-8 artifact contents and hashes for every request, rendered prompt, raw completion, input/output token sequence and original result, plus run manifests, runtime versions, hardware and source-file pins. Re-encoding each `files` entry's `utf8` string reconstructs its original bytes. Original worker logs and token journals are not duplicated; their hashes remain in the retained artifact manifests.
+
+Reproduce the model-free report from the versioned review:
+
+```sh
+python -B tools/validate_pilot_eval.py --responses evaluation/smollm3-pilot-review-2026-10-26.json --output artifacts/smollm3-pilot-review-recheck.json
+```
+
+Exit code 1 is expected because failed results remain in this complete report; it does not indicate malformed review records. The suite and review have not been changed to accommodate the candidate. A larger model comparison is planned. No training, prompt tuning against these cases or model approval follows from this evidence. The earlier small development and native parity probes remain useful integration evidence, but do not outweigh the broader quality failures.
