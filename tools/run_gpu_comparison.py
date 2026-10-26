@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import platform
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -203,6 +204,60 @@ def effective_memory(host_available_kib, cgroup_root=Path("/sys/fs/cgroup"), mem
             "cgroup_bounds": bounds, "cgroup_accounting_visible": bool(bounds)}
 
 
+def release_verified_weight_cache(work, model, deadline):
+    """Advise only pinned, verified owned weight files out of the page cache.
+
+    This changes no file bytes and gives no credit to the memory calculation.
+    DONTNEED is advisory; the existing RAM guard must still pass afterwards.
+    """
+    if work.is_symlink():
+        raise RuntimeError("Weight cache root must not be a symlink")
+    root = work.resolve()
+    receipts = []
+    for name, pin in model["files"].items():
+        if not name.endswith(".safetensors"):
+            continue
+        if Path(name).name != name or "/" in name or "\\" in name:
+            raise RuntimeError("Weight filename must stay directly inside its owned cache root")
+        target = root / name
+        if target.is_symlink():
+            raise RuntimeError("Weight cache file must not be a symlink")
+        if not target.exists():
+            continue  # The normal source phase will download missing weights.
+        if target.resolve() != target or not target.is_file():
+            raise RuntimeError("Weight cache target must be an owned regular file")
+        if not hasattr(os, "posix_fadvise") or not hasattr(os, "POSIX_FADV_DONTNEED"):
+            raise RuntimeError("Per-file cache advice requires Linux posix_fadvise support")
+        if time.monotonic() >= deadline:
+            raise TimeoutError("Allocation expired before weight-cache verification")
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        with os.fdopen(os.open(target, flags), "rb") as source:
+            fd = source.fileno()
+            before = os.fstat(fd)
+            if not stat.S_ISREG(before.st_mode) or before.st_size != pin["bytes"]:
+                raise RuntimeError("Weight cache descriptor is not a regular file of the pinned size")
+            digest = hashlib.sha256()
+            while chunk := source.read(1024 * 1024):
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("Allocation expired during weight-cache verification")
+                digest.update(chunk)
+            after = os.fstat(fd)
+            identity = lambda info: (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+            if (digest.hexdigest() != pin["sha256"] or identity(before) != identity(after) or
+                    identity(before) != identity(target.stat(follow_symlinks=False))):
+                raise RuntimeError("Weight cache file changed or failed its pinned SHA-256")
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Allocation expired before weight-cache advice")
+            # Sync only this verified descriptor so freshly downloaded dirty
+            # pages are clean before the advisory hint. No global cache drop.
+            os.fsync(fd)
+            os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
+        receipts.append({"name": name, "bytes": pin["bytes"], "sha256": pin["sha256"],
+                         "same_descriptor_sha256_verified": True, "advice": "POSIX_FADV_DONTNEED",
+                         "advice_succeeded": True, "reclaimed_bytes": "not_measured"})
+    return receipts
+
+
 def pinned_download(model, name, pin, work, deadline):
     """Public HTTPS only; no Hugging Face authentication or unpinned cache lookup."""
     target = work / name
@@ -332,6 +387,8 @@ def model_worker(work, output, model_id, seconds):
     validate_source_metadata(model_spec, work)
     reference.write_json(model_output / "verified-source.json", {"repository": model_spec["repository"],
                          "revision": model_spec["revision"], "files": receipts})
+    cache_advice = release_verified_weight_cache(work, model_spec, deadline)
+    reference.write_json(model_output / "weight-cache-advice.json", cache_advice)
     pilot.configure_offline()
     os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     import torch
@@ -537,6 +594,12 @@ def execute(work, output, hourly_usd, already_spent_usd, reserve_usd):
         if platform.system() != "Linux" or not os.environ.get("RUNPOD_POD_ID"):
             raise RuntimeError("Actual inference is remote Runpod only; use --plan or unit tests locally")
         manifest["versions"] = versions(config)
+        # A previous process can leave both models in active file cache. Verify
+        # and advise only our exact pinned files before measuring RAM again.
+        manifest["weight_cache_advice"] = {
+            model["id"]: release_verified_weight_cache(work / model["id"], model,
+                started + allowed - config["limits"]["reporting_reserve_seconds"])
+            for model in config["models"]}
         manifest["hardware"] = pilot.hardware()
         manifest["gpu"] = gpu_preflight()
         manifest["memory_preflight"] = effective_memory(manifest["hardware"]["mem_available_kib"])

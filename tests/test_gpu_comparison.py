@@ -218,6 +218,112 @@ class GpuComparisonTests(unittest.TestCase):
             root = Path(tmp)
             self.assertFalse(gpu.effective_memory(30 * 1024 * 1024, root, root / "missing")["cgroup_accounting_visible"])
 
+    def cache_fixture(self, root):
+        data = b"Fictional cache-advice test bytes.\n" * 2048
+        pin = {"bytes": len(data), "sha256": gpu.hashlib.sha256(data).hexdigest()}
+        (root / "weights.safetensors").write_bytes(data)
+        (root / "metadata.json").write_bytes(data)
+        return data, {"files": {"weights.safetensors": pin, "metadata.json": pin}}
+
+    def test_cache_advice_verifies_same_readonly_file_before_sync_and_hint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data, model = self.cache_fixture(root)
+            calls = []
+            def sync(fd):
+                calls.append(("sync", os.fstat(fd).st_size))
+            def advise(fd, offset, length, advice):
+                calls.append(("advise", os.fstat(fd).st_size, offset, length, advice))
+            with patch.object(gpu.os, "fsync", side_effect=sync), \
+                 patch.object(gpu.os, "posix_fadvise", side_effect=advise, create=True), \
+                 patch.object(gpu.os, "POSIX_FADV_DONTNEED", 4, create=True):
+                records = gpu.release_verified_weight_cache(root, model, time.monotonic() + 10)
+            self.assertEqual(calls, [("sync", len(data)), ("advise", len(data), 0, 0, 4)])
+            self.assertEqual(records[0]["sha256"], model["files"]["weights.safetensors"]["sha256"])
+            self.assertEqual(records[0]["reclaimed_bytes"], "not_measured")
+            self.assertTrue(records[0]["same_descriptor_sha256_verified"])
+            self.assertEqual((root / "weights.safetensors").read_bytes(), data)
+            self.assertEqual((root / "metadata.json").read_bytes(), data)
+
+    def test_cache_advice_rejects_hash_size_nonregular_and_path_escape_without_hint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data, model = self.cache_fixture(root)
+            bad_hash = copy.deepcopy(model)
+            bad_hash["files"]["weights.safetensors"]["sha256"] = "0" * 64
+            bad_size = copy.deepcopy(model)
+            bad_size["files"]["weights.safetensors"]["bytes"] += 1
+            outside = {"files": {"../escape.safetensors": model["files"]["weights.safetensors"]}}
+            directory = root / "directory.safetensors"
+            directory.mkdir()
+            directory_model = {"files": {directory.name: model["files"]["weights.safetensors"]}}
+            with patch.object(gpu.os, "fsync") as sync, \
+                 patch.object(gpu.os, "posix_fadvise", create=True) as advise, \
+                 patch.object(gpu.os, "POSIX_FADV_DONTNEED", 4, create=True):
+                for invalid in (bad_hash, bad_size, outside, directory_model):
+                    with self.assertRaises(RuntimeError):
+                        gpu.release_verified_weight_cache(root, invalid, time.monotonic() + 10)
+                with patch.object(gpu.os, "fstat", return_value=SimpleNamespace(st_mode=gpu.stat.S_IFIFO, st_size=len(data))), \
+                     self.assertRaisesRegex(RuntimeError, "descriptor.*regular"):
+                    gpu.release_verified_weight_cache(root, model, time.monotonic() + 10)
+                real_stat = (root / "weights.safetensors").stat()
+                changed = SimpleNamespace(**{key: getattr(real_stat, key) for key in
+                    ("st_dev", "st_ino", "st_size", "st_mode", "st_mtime_ns", "st_ctime_ns")})
+                changed.st_mtime_ns += 1
+                with patch.object(gpu.os, "fstat", side_effect=[real_stat, changed]), \
+                     self.assertRaisesRegex(RuntimeError, "changed"):
+                    gpu.release_verified_weight_cache(root, model, time.monotonic() + 10)
+                sync.assert_not_called()
+                advise.assert_not_called()
+            self.assertEqual((root / "weights.safetensors").read_bytes(), data)
+
+    def test_cache_advice_rejects_symlinks_missing_support_and_expired_deadline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _, model = self.cache_fixture(root)
+            with patch.object(gpu.os, "posix_fadvise", create=True) as advise, \
+                 patch.object(gpu.os, "POSIX_FADV_DONTNEED", 4, create=True):
+                for symlink_at in (root, root / "weights.safetensors"):
+                    original = Path.is_symlink
+                    with patch.object(Path, "is_symlink", lambda value: value == symlink_at or original(value)), \
+                         self.assertRaisesRegex(RuntimeError, "symlink"):
+                        gpu.release_verified_weight_cache(root, model, time.monotonic() + 10)
+                with self.assertRaises(TimeoutError):
+                    gpu.release_verified_weight_cache(root, model, time.monotonic() - 1)
+                real_hasattr = hasattr
+                with patch.object(gpu, "hasattr", side_effect=lambda obj, name:
+                    False if obj is gpu.os and name == "posix_fadvise" else real_hasattr(obj, name), create=True), \
+                     self.assertRaisesRegex(RuntimeError, "posix_fadvise support"):
+                    gpu.release_verified_weight_cache(root, model, time.monotonic() + 10)
+                advise.assert_not_called()
+                # A filesystem/kernel refusal must propagate, with bytes intact.
+                with patch.object(gpu.os, "fsync"), patch.object(gpu.os, "posix_fadvise", side_effect=OSError("test refusal")), \
+                     self.assertRaisesRegex(OSError, "test refusal"):
+                    gpu.release_verified_weight_cache(root, model, time.monotonic() + 10)
+            missing = {"files": {"missing.safetensors": {"bytes": 1, "sha256": "0" * 64}}}
+            self.assertEqual(gpu.release_verified_weight_cache(root, missing, time.monotonic() + 10), [])
+
+    @unittest.skipUnless(sys.platform == "linux" and hasattr(os, "posix_fadvise"), "Requires actual Linux cache-advice syscall")
+    def test_real_linux_cache_advice_preserves_file_and_rejects_real_symlink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data, model = self.cache_fixture(root)
+            before = (root / "weights.safetensors").stat()
+            records = gpu.release_verified_weight_cache(root, model, time.monotonic() + 10)
+            after = (root / "weights.safetensors").stat()
+            self.assertEqual((before.st_ino, before.st_size, before.st_mtime_ns),
+                             (after.st_ino, after.st_size, after.st_mtime_ns))
+            self.assertEqual((root / "weights.safetensors").read_bytes(), data)
+            self.assertTrue(records[0]["advice_succeeded"])
+            (root / "linked.safetensors").symlink_to(root / "weights.safetensors")
+            with self.assertRaisesRegex(RuntimeError, "symlink"):
+                gpu.release_verified_weight_cache(root, {"files": {"linked.safetensors": model["files"]["weights.safetensors"]}},
+                                                  time.monotonic() + 10)
+            os.mkfifo(root / "pipe.safetensors")
+            with self.assertRaisesRegex(RuntimeError, "regular file"):
+                gpu.release_verified_weight_cache(root, {"files": {"pipe.safetensors": model["files"]["weights.safetensors"]}},
+                                                  time.monotonic() + 10)
+
     def fake_valid_output(self):
         case = self.suite["cases"][0]
         return case, json.dumps({"answer": "Fabricated test sentence; not a semantic assessment.",
