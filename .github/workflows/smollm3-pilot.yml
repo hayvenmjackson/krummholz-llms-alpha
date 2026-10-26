@@ -1,0 +1,104 @@
+name: SmolLM3 frozen 36-case pilot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pilot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      OMP_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      TOKENIZERS_PARALLELISM: "false"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      HF_HUB_DISABLE_IMPLICIT_TOKEN: "1"
+      CUDA_VISIBLE_DEVICES: ""
+      PYTHONUNBUFFERED: "1"
+      PILOT_SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the same pinned original-checkpoint CPU runtime
+        timeout-minutes: 5
+        run: |
+          python -m pip install --disable-pip-version-check torch==2.9.1+cpu --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install --disable-pip-version-check transformers==4.57.1 tokenizers==0.22.2 safetensors==0.6.2 huggingface-hub==0.36.0
+          python -m pip check
+          python -m pip freeze > "$RUNNER_TEMP/pilot-python-packages.txt"
+      - name: Check frozen inputs and runner boundaries without inference
+        run: |
+          python -B tools/run_smollm3_pilot.py --self-test
+          python -B -m unittest tests.test_pilot_eval -q
+      - name: Attempt nine held-out cases using the frozen source-QA configuration
+        timeout-minutes: 33
+        run: |
+          python -B tools/run_smollm3_pilot.py \
+            --shard "$PILOT_SHARD" \
+            --work "$RUNNER_TEMP/smollm3-pilot-source" \
+            --output "$RUNNER_TEMP/smollm3-pilot"
+      - name: Preserve dependency inventory and hash all evidence
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/smollm3-pilot"
+          if [ -f "$RUNNER_TEMP/pilot-python-packages.txt" ]; then
+            cp "$RUNNER_TEMP/pilot-python-packages.txt" "$RUNNER_TEMP/smollm3-pilot/python-packages.txt"
+          fi
+          python -B - <<'PY'
+          import os
+          from pathlib import Path
+          from tools.run_smollm3_pilot import inventory, reference
+          folder = Path(os.environ["RUNNER_TEMP"]) / "smollm3-pilot"
+          reference.write_json(folder / "artifact-hashes.json", inventory(folder))
+          PY
+      - name: Retain every attempt and raw fictional diagnostic output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smollm3-pilot-shard-${{ matrix.shard }}
+          path: ${{ runner.temp }}/smollm3-pilot/
+          if-no-files-found: error
+          retention-days: 14
+
+  collect:
+    if: always()
+    needs: pilot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: smollm3-pilot-shard-*
+          path: ${{ runner.temp }}/pilot-shards
+      - name: Combine all 36 records and report deterministic checks separately
+        if: always()
+        run: |
+          python -B tools/run_smollm3_pilot.py \
+            --merge "$RUNNER_TEMP/pilot-shards" --output "$RUNNER_TEMP/smollm3-pilot-report"
+      - name: Preserve complete pilot report, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smollm3-pilot-report
+          path: ${{ runner.temp }}/smollm3-pilot-report/
+          if-no-files-found: error
+          retention-days: 14
