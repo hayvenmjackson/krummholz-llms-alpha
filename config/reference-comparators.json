@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "approved_for_application": false,
+  "training_performed": false,
+  "pinned_on": "2026-10-26",
+  "purpose": "Original BF16 source-QA comparison; no semantic acceptance inferred from schema checks",
+  "suite_sha256": "6eda5672c65edf015409198eb21ed9f13ca346fde9d914f51497a38c3065a541",
+  "qa_reference_spec_sha256": "8503c0a847c05828517f4b160a0b194659020ea27cd55ca8d4cfa7034e5cf8c6",
+  "versions": {
+    "torch": "2.9.1+cu128",
+    "transformers": "4.57.1",
+    "tokenizers": "0.22.2",
+    "safetensors": "0.6.2",
+    "huggingface-hub": "0.36.0",
+    "Jinja2": "3.1.6"
+  },
+  "python_minor": "3.12",
+  "limits": {
+    "max_new_tokens": 384,
+    "context_tokens": 4096,
+    "case_seconds": 120,
+    "total_seconds": 7200,
+    "budget_usd": 20.0,
+    "minimum_reserve_usd": 2.0,
+    "reporting_reserve_seconds": 30
+  },
+  "variants": [
+    {
+      "id": "primary-sampling-42",
+      "tier": "primary",
+      "do_sample": true,
+      "seed": 42
+    },
+    {
+      "id": "primary-sampling-1337",
+      "tier": "primary",
+      "do_sample": true,
+      "seed": 1337
+    },
+    {
+      "id": "secondary-greedy-42",
+      "tier": "secondary",
+      "do_sample": false,
+      "seed": 42
+    }
+  ],
+  "attempt_order": "Models in manifest order; each variant in manifest order; all 36 cases in frozen suite order. No best-of selection.",
+  "models": [
+    {
+      "id": "olmo3-7b",
+      "repository": "allenai/Olmo-3-7B-Instruct",
+      "revision": "6e5971d9eba42665f5bd5a0fcf047f299ce1dccc",
+      "dtype": "bfloat16",
+      "model_type": "olmo3",
+      "architecture": "Olmo3ForCausalLM",
+      "license": "Apache-2.0",
+      "license_evidence": "README.md (publisher declaration; no standalone LICENSE in this revision)",
+      "publisher_card_url": "https://huggingface.co/allenai/Olmo-3-7B-Instruct/blob/6e5971d9eba42665f5bd5a0fcf047f299ce1dccc/README.md",
+      "files": {
+        "README.md": {
+          "bytes": 12466,
+          "sha256": "9c7c873ea9bd506db7800e61a0535302106bdc393d72b0d2341197330d25a7fe",
+          "git_blob_sha1": "53f9006ad6a575eba8a44115ce9cd73b4149c5eb"
+        },
+        "chat_template.jinja": {
+          "bytes": 2613,
+          "sha256": "f5186d42d99c8a0445d37fd8a6c7ccf07fe3e24a29ce622d8bd245da9507b12b",
+          "git_blob_sha1": "a21396285102846aa0787dd598623e7b8dbb2b67"
+        },
+        "config.json": {
+          "bytes": 1625,
+          "sha256": "6282ae812f9e494bd212e9a3233d68dc4d5f1e2569642423d2b79a3e80373ef8",
+          "git_blob_sha1": "9c118c14e7871ec96335dc859995b4ef554bb097"
+        },
+        "generation_config.json": {
+          "bytes": 204,
+          "sha256": "745e78c16cc40cbb08827f7b7c9d5a888f7cb908236d4ca0443ff47f43a9d5af",
+          "git_blob_sha1": "0739fd213b7634f1c4b2273bec0d4eb87a552de2"
+        },
+        "merges.txt": {
+          "bytes": 916646,
+          "sha256": "b6fe424e334903f7fb84d3a106d9730455f4744b9fe3c21ee136d97a00e72502",
+          "git_blob_sha1": "354558edcdbd64ca7abd407b8be3d5d09d39d781"
+        },
+        "model-00001-of-00003.safetensors": {
+          "bytes": 4969984976,
+          "sha256": "e7bd4c8ba52177a815aee5929cb458a116a65799688d3e51402500a1cb77023c",
+          "source": "Hugging Face LFS SHA-256 at pinned revision"
+        },
+        "model-00002-of-00003.safetensors": {
+          "bytes": 4981161496,
+          "sha256": "ea92aa0499a2ca02400e5d87324009e172bdbfb9809f2ac501485d8224382328",
+          "source": "Hugging Face LFS SHA-256 at pinned revision"
+        },
+        "model-00003-of-00003.safetensors": {
+          "bytes": 4644917240,
+          "sha256": "d50f95e4f2ec5fc4fbce6217cbf54fd1d700928b05e5550c8ee08bf4ba948925",
+          "source": "Hugging Face LFS SHA-256 at pinned revision"
+        },
+        "model.safetensors.index.json": {
+          "bytes": 29630,
+          "sha256": "47a8266860f2a5f95c021fb4d7d3a469a95ee8b445742becbb6b19632cfc6e95",
+          "git_blob_sha1": "421a80b181a130ccbc579a328fb349d8792a32ce"
+        },
+        "special_tokens_map.json": {
+          "bytes": 581,
+          "sha256": "78afb564e81264029b25f9caf24bda2521d5bdaeff5cd3fdbc01d3da2e8ce2f2",
+          "git_blob_sha1": "9d133a8f4995ff315a8a3e68dbba03409d214a8e"
+        },
+        "tokenizer.json": {
+          "bytes": 7137175,
+          "sha256": "7738a25c46a6043a0e2e605138851baa450269ce9d800af6ca9bf6192e45510c",
+          "git_blob_sha1": "54b3f7c465454c7878d6e955e44064d23c5a4052"
+        },
+        "tokenizer_config.json": {
+          "bytes": 4318,
+          "sha256": "f7a2753a4ff30657e452c8fef02b9a99a3b900ceb4c65a1e3fbea6a3bfab07a6",
+          "git_blob_sha1": "277b816675b12d22c3ca0e2b4af1b9dc88e30043"
+        },
+        "vocab.json": {
+          "bytes": 1611055,
+          "sha256": "d8eb44d0d51f5e39c9b14825ca8bd10a2500f99c438ca81d4462f0263acd3b53",
+          "git_blob_sha1": "9c2954b1c94c5267dc84a5d0214efbc79ff8c3bd"
+        }
+      },
+      "template_sha256": "f5186d42d99c8a0445d37fd8a6c7ccf07fe3e24a29ce622d8bd245da9507b12b",
+      "template_kwargs": {
+        "tools": null
+      },
+      "eos_token_ids": [
+        100265,
+        100257
+      ],
+      "pad_token_id": 100277,
+      "primary_sampling": {
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "top_k": 50,
+        "min_p": 0.0
+      },
+      "reasoning_policy": "Instruct checkpoint; no thinking switch or forced reasoning prompt",
+      "sampling_note": "Publisher temperature/top_p recommendation and top_k=50 example; min_p=0 disables a filter absent from the publisher configuration"
+    },
+    {
+      "id": "qwen3-8b",
+      "repository": "Qwen/Qwen3-8B",
+      "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+      "dtype": "bfloat16",
+      "model_type": "qwen3",
+      "architecture": "Qwen3ForCausalLM",
+      "license": "Apache-2.0",
+      "license_evidence": "LICENSE",
+      "publisher_card_url": "https://huggingface.co/Qwen/Qwen3-8B/blob/b968826d9c46dd6066d109eabc6255188de91218/README.md",
+      "files": {
+        "LICENSE": {
+          "bytes": 11343,
+          "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e",
+          "git_blob_sha1": "6634c8cc3133b3848ec74b9f275acaaa1ea618ab"
+        },
+        "README.md": {
+          "bytes": 16660,
+          "sha256": "0f36caaff9c2516411a7738db384606263ba653c1e63e61d72f511606164d5a6",
+          "git_blob_sha1": "ecc3ebd0849aa08d9484bd911dddfd5261b10d30"
+        },
+        "config.json": {
+          "bytes": 728,
+          "sha256": "f7c4eadfbbf522470667b797a3c89be2524832d2d599797248dc304fff447c30",
+          "git_blob_sha1": "d46195ac87f837ad233d02b2f80f148bf7c005e0"
+        },
+        "generation_config.json": {
+          "bytes": 239,
+          "sha256": "2325da0f15bb848e018c5ae071b7943332e9f871d6b60e2ed22ca97d4cb993d2",
+          "git_blob_sha1": "20a8a9156fc8c3f25295ca067f61fdf120d517c5"
+        },
+        "merges.txt": {
+          "bytes": 1671853,
+          "sha256": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5",
+          "git_blob_sha1": "31349551d90c7606f325fe0f11bbb8bd5fa0d7c7"
+        },
+        "model-00001-of-00005.safetensors": {
+          "bytes": 3996250744,
+          "sha256": "31d6a825ae35f11fb85b195b4c42c146c051e446433125a215336abdf95cbf5f",
+          "source": "Hugging Face LFS SHA-256 at pinned revision"
+        },
+        "model-00002-of-00005.safetensors": {
+          "bytes": 3993160032,
+          "sha256": "5991236cea6fe21f3d43cab0f0e84448734fbbe0789816202989f2ddc9d18282",
+          "source": "Hugging Face LFS SHA-256 at pinned revision"
+        },
+        "model-00003-of-00005.safetensors": {
+          "bytes": 3959604768,
+          "sha256": "c5185c4794be2d8a9784d5753c9922db38df478ce11f9ed0b415b7304d896836",
+          "source": "Hugging Face LFS SHA-256 at pinned revision"
+        },
+        "model-00004-of-00005.safetensors": {
+          "bytes": 3187841392,
+          "sha256": "b5ee7de71fbf17db3d5704e0c8f2bc7d005ca9e1d7ca2aeb19827b0cfcaa917a",
+          "source": "Hugging Face LFS SHA-256 at pinned revision"
+        },
+        "model-00005-of-00005.safetensors": {
+          "bytes": 1244659840,
+          "sha256": "20c2d6366ab85c90786ccdd829cd2b9e7d30ef3b2ebbb998280e7e4014b542ff",
+          "source": "Hugging Face LFS SHA-256 at pinned revision"
+        },
+        "model.safetensors.index.json": {
+          "bytes": 32878,
+          "sha256": "f9fdbcb91c23971c13ec5d5f2573d2349e8f61f2f049371ec699281748fdb1bc",
+          "git_blob_sha1": "2b85c00f1b118961cd7a477e2bba0fe197a4ce1a"
+        },
+        "tokenizer.json": {
+          "bytes": 11422654,
+          "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+          "git_blob_sha1": "cd71f61a15a522601badb3dc960d800d9cb3766c"
+        },
+        "tokenizer_config.json": {
+          "bytes": 9732,
+          "sha256": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101",
+          "git_blob_sha1": "417d038a63fa3de29cfde265caedae14d1a58d92"
+        },
+        "vocab.json": {
+          "bytes": 2776833,
+          "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+          "git_blob_sha1": "4783fe10ac3adce15ac8f358ef5462739852c569"
+        }
+      },
+      "template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+      "template_kwargs": {
+        "tools": null,
+        "enable_thinking": false
+      },
+      "eos_token_ids": [
+        151645,
+        151643
+      ],
+      "pad_token_id": 151643,
+      "primary_sampling": {
+        "temperature": 0.7,
+        "top_p": 0.8,
+        "top_k": 20,
+        "min_p": 0.0
+      },
+      "reasoning_policy": "Publisher enable_thinking=False; preserve empty reasoning prefix, reject generated non-JSON reasoning",
+      "sampling_note": "Publisher non-thinking recommendation: temperature=0.7, top_p=0.8, top_k=20, min_p=0"
+    }
+  ]
+}

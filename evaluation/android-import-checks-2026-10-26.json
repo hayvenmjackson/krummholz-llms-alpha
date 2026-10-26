@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "reviewed_on": "2026-10-26",
+  "repository": "hayvenmjackson/krummholz-llms-alpha",
+  "workflow": ".github/workflows/android-import-checks.yml",
+  "run_id": 40331351780,
+  "run_url": "https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40331351780",
+  "source_commit": "9cfd18cf57aa46c19d05f050a8f0f9b13467915d",
+  "conclusion": "success",
+  "evidence_basis": "GitHub job statuses and completed job logs; both emulator logs explicitly report OK (11 tests). Artifact metadata and digests below were returned by GitHub; archive bytes were not downloaded or independently rehashed for this record.",
+  "scope": {
+    "synthetic_import_bytes": 7,
+    "provider_tests_per_emulator": 7,
+    "picker_tests_per_emulator": 4,
+    "model_weights_downloaded": false,
+    "model_inference_performed": false,
+    "full_size_android_import_tested": false,
+    "full_size_android_model_inference_tested": false,
+    "model_approval_modified": false,
+    "model_quality_accepted": false,
+    "release_authorized": false,
+    "persistent_signing_secret_used": false
+  },
+  "build": {
+    "job_id": 121601288874,
+    "conclusion": "success",
+    "llama_cpp_commit": "620d2225cc436ab0b001e3200e590e3b286ef9ab",
+    "native_abis": ["arm64-v8a", "x86_64"],
+    "passed_checks": [
+      "Native and Java release compilation",
+      "Release JVM unit tests and Android lint",
+      "Production and instrumentation APKs each have one matching ephemeral test-only signer",
+      "Test content provider absent from production compiled manifest and present in instrumentation manifest",
+      "Production APK requests no permissions",
+      "Embedded model manifest bytes unchanged",
+      "Neither APK contains model weights or keystore files",
+      "APK ZIP alignment and every packaged native ELF LOAD alignment support 16KB pages"
+    ]
+  },
+  "instrumentation": [
+    {
+      "job_id": 121603641454,
+      "system_image": "system-images;android-36;google_apis;x86_64",
+      "verified_page_size_bytes": 4096,
+      "tests_passed": 11,
+      "conclusion": "success",
+      "log_result": "OK (11 tests)",
+      "log_result_utc": "2026-10-26T13:38:08.0138349Z"
+    },
+    {
+      "job_id": 121603641385,
+      "system_image": "system-images;android-36;google_apis_ps16k;x86_64",
+      "verified_page_size_bytes": 16384,
+      "tests_passed": 11,
+      "conclusion": "success",
+      "log_result": "OK (11 tests)",
+      "log_result_utc": "2026-10-26T13:38:17.1614356Z"
+    }
+  ],
+  "test_classes": [
+    "ai.krummholz.llm.ModelMultipartImportTest",
+    "ai.krummholz.llm.ModelPickerSelectionTest"
+  ],
+  "artifacts": [
+    {
+      "id": 12655048244,
+      "name": "android-import-build-reports",
+      "bytes": 41303,
+      "github_reported_sha256": "cd842c2c23dc2c130b83c15d94be63728202288634c12c1b80db1390f071efac",
+      "expires_at": "2026-11-09T13:36:11Z"
+    },
+    {
+      "id": 12654574009,
+      "name": "android-import-4096-evidence",
+      "bytes": 6263,
+      "github_reported_sha256": "67c0b9bae43f8cc39869a1309f073689caec37ba2c2498972d44f1545969d192",
+      "expires_at": "2026-11-09T13:38:08Z"
+    },
+    {
+      "id": 12654194185,
+      "name": "android-import-16384-evidence",
+      "bytes": 6278,
+      "github_reported_sha256": "b36aedf90b1868c0484716067235232c50cdac7c111664d122b3b93bdbc2384c",
+      "expires_at": "2026-11-09T13:38:17Z"
+    },
+    {
+      "id": 12654463493,
+      "name": "android-import-test-build",
+      "bytes": 5868729,
+      "github_reported_sha256": "9a34f2f42fec150d43ab5dc64dbbdff888154f7c73daf90c36264f5fd9619341",
+      "expires_at": "2026-11-02T13:36:09Z",
+      "purpose": "Temporary APKs signed with an ephemeral CI-only key; not a product release"
+    }
+  ],
+  "limitations": [
+    "Synthetic regular-file provider and cancellation behavior passed; arbitrary third-party providers may ignore Android cancellation transport.",
+    "The complete 6,158,339,904-byte candidate has not been imported or run on Android; no phone performance result is established.",
+    "SmolLM3 remains rejected for release after the separate quality pilot; these infrastructure checks do not change model approval."
+  ]
+}
