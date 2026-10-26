@@ -11,12 +11,15 @@ unchanged baseline before choosing compression; a smaller download earns its pla
 only if it preserves the needed task quality. The Samsung S26 remains a device to
 measure, rather than a ceiling on model capability. Distinguish model quality
 from conversion/runtime defects with an original-checkpoint reference run.
+Original-checkpoint and corrected GGUF comparisons now show material answer and
+citation failures in both initial Pleias sizes. They are not release candidates.
+SmolLM3 3B is the next unchanged comparator; no replacement has been accepted yet.
 
 Use one application platform with Acadia, Katahdin and Atlantic profiles. Separate
-their source namespaces, policy descriptions and evaluation cases. Start with
-Pleias-RAG-1B for quality and the matching 350M model for a low-cost runtime check.
-One successful small checkpoint may serve both the Android phone and a shared
-hosted API. A larger or second engine must earn its cost with evaluation.
+their source namespaces, policy descriptions and evaluation cases. The initial
+comparison started with Pleias-RAG-1B and its matching 350M runtime check. Select
+the next checkpoint from measured task quality, then assess phone and hosted
+deployment. A larger or second engine must earn its cost with evaluation.
 
 The local phone target is Samsung S26; exact variant, RAM, Android
 version, sustained performance and runtime compatibility remain to be verified.
@@ -52,7 +55,8 @@ Begin runtime testing with one bounded case after checking available memory.
 The 24-case suite should run only on a host with sufficient capacity. Runtime and
 model provisioning, including quantization, are separate from harness execution.
 
-November 15, 2026 is the target for an operable preliminary Android/hosted pilot.
+November 15, 2026 is the target for an operable preliminary Android/hosted pilot;
+the user's October 26 direction gives demonstrated quality priority over this date.
 This milestone adapts existing weights rather than training three foundation
 models or delivering five polished native apps. Katahdin examples remain
 provisional, synthetic, and non-predictive pending domain review.

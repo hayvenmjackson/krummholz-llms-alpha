@@ -6,7 +6,11 @@ on:
       model_run_id:
         description: "Preparation run containing the exact embedded-manifest model"
         required: true
-        default: "40107809392"
+        type: string
+      model_artifact_name:
+        description: "Preparation artifact containing the exact approved model"
+        required: true
+        default: "alpha-model"
         type: string
       run_emulators:
         description: "Run real model and UI checks on 4KB and 16KB Android emulators"
@@ -78,23 +82,22 @@ jobs:
       - name: Download preparation artifact
         uses: actions/download-artifact@v4
         with:
-          name: alpha-model
+          name: ${{ inputs.model_artifact_name }}
           run-id: ${{ inputs.model_run_id }}
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/alpha-model
-      - name: Verify pinned model and stage test-only asset
+      - name: Verify pinned model without embedding weights in either APK
         run: |
           python - <<'PY'
-          import hashlib,json,os,pathlib,shutil
+          import hashlib,json,os,pathlib
           expected=json.loads(pathlib.Path('android/app/src/main/assets/model-manifest.json').read_text())
+          assert expected['approved'] and pathlib.Path(expected['filename']).name==expected['filename']
           p=pathlib.Path(os.environ['RUNNER_TEMP'])/'alpha-model'/expected['filename']
           h=hashlib.sha256()
           with p.open('rb') as f:
               for chunk in iter(lambda:f.read(1024*1024),b''): h.update(chunk)
-          assert expected['approved'] and p.stat().st_size==expected['bytes'] and h.hexdigest()==expected['sha256']
-          target=pathlib.Path('android/app/src/androidTest/assets/test-model.gguf')
-          target.parent.mkdir(parents=True,exist_ok=True)
-          shutil.copyfile(p,target)
+          assert p.stat().st_size==expected['bytes'] and h.hexdigest()==expected['sha256']
+          assert not list(pathlib.Path('android/app/src').rglob('*.gguf')), 'Weights must not enter APK assets'
           PY
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
@@ -138,6 +141,13 @@ jobs:
           cp android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/release/Krummholz-LLMs-0.1.0-alpha.1.apk"
           python tools/verify_android_release.py --apk "$RUNNER_TEMP/release/Krummholz-LLMs-0.1.0-alpha.1.apk" --build-tools "$ANDROID_HOME/build-tools/35.0.0" --report "$RUNNER_TEMP/release/apk-verification.json"
           cp android/app/build/outputs/apk/androidTest/release/app-release-androidTest.apk "$RUNNER_TEMP/release/instrumentation.apk"
+          cp android/app/src/main/assets/model-manifest.json "$RUNNER_TEMP/release/model-manifest.json"
+          python - <<'PY'
+          import os,pathlib,zipfile
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'release'/'instrumentation.apk'
+          with zipfile.ZipFile(p) as z:
+              assert not any(n.lower().endswith('.gguf') for n in z.namelist()), 'Test APK embeds weights'
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: android-alpha-build
@@ -178,6 +188,12 @@ jobs:
         with:
           name: android-alpha-build
           path: apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.model_artifact_name }}
+          run-id: ${{ inputs.model_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/alpha-model
       - name: Enable runner KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -190,7 +206,7 @@ jobs:
           set -euo pipefail
           sdkmanager "emulator" "platform-tools" "system-images;android-36;$IMAGE;x86_64"
           echo no | avdmanager create avd -n alpha -k "system-images;android-36;$IMAGE;x86_64" --force
-          "$ANDROID_HOME/emulator/emulator" -avd alpha -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 4096 > emulator-boot.log 2>&1 &
+          "$ANDROID_HOME/emulator/emulator" -avd alpha -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 4096 -partition-size 24576 > emulator-boot.log 2>&1 &
           adb wait-for-device
           timeout 180 sh -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
           adb shell input keyevent 82
@@ -206,6 +222,23 @@ jobs:
           test "$actual" = "$EXPECTED_PAGE_SIZE"
           adb install apk/Krummholz-LLMs-0.1.0-alpha.1.apk
           adb install -t apk/instrumentation.apk
+          python - <<'PY'
+          import hashlib,json,os,pathlib,subprocess
+          expected=json.loads(pathlib.Path('apk/model-manifest.json').read_text())
+          assert expected['approved'] and pathlib.Path(expected['filename']).name==expected['filename']
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'alpha-model'/expected['filename']
+          with p.open('rb') as f: actual=hashlib.file_digest(f,'sha256').hexdigest()
+          assert p.stat().st_size==expected['bytes'] and actual==expected['sha256']
+          directory='/sdcard/Android/data/ai.krummholz.llm/files'
+          destination=directory+'/test-model.gguf'
+          subprocess.run(['adb','shell','mkdir','-p',directory],check=True,timeout=30)
+          # Allow staging, the imported active copy and a replacement copy simultaneously.
+          free=int(subprocess.check_output(['adb','shell','df','-k',directory],text=True).splitlines()[-1].split()[3])*1024
+          assert free > 3*expected['bytes']+1024**3, 'Emulator lacks space for verified import/replacement'
+          subprocess.run(['adb','push',str(p),destination],check=True,timeout=600)
+          actual_device=subprocess.check_output(['adb','shell','sha256sum',destination],text=True,timeout=300).split()[0]
+          assert actual_device==expected['sha256'], 'Emulator staged bytes differ'
+          PY
           adb logcat -c
           timeout 1200 adb shell am instrument -w -r ai.krummholz.llm.test/androidx.test.runner.AndroidJUnitRunner | tee instrumentation.txt
           grep -Eq '^OK \([0-9]+ tests?\)' instrumentation.txt

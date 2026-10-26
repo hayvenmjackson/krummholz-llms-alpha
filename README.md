@@ -3,13 +3,16 @@
 [![Offline harness checks](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/workflows/harness-checks.yml/badge.svg)](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/workflows/harness-checks.yml)
 
 Source and development evidence for Acadia, Katahdin and Atlantic, the Krummholz
-LLM offerings. Initial implementation is underway; device testing is the next
-milestone.
+LLM offerings. Android source builds successfully. Model selection and quality
+evaluation are underway before a downloadable alpha is released.
 
 ## Android builds
 
-No LLM Android APK has been built yet. Verified APKs will be attached to GitHub
-Releases with their version, checksum and testing status.
+The native Android application compiles, and its unit and lint checks pass in
+[GitHub Actions](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40318618165).
+**No usable alpha APK has been released.** The current development manifest does
+not approve any model. A signed APK will be attached to GitHub Releases only after
+model, installation and runtime validation, with its checksum and testing status.
 
 ## Current construction milestone
 
@@ -17,10 +20,24 @@ Status: a local inference/evaluation harness around unchanged upstream model wei
 This is not a Krummholz-trained model, a phone benchmark, or a production service.
 No client data, cloud inference, external tools or paid compute are used here.
 
-The first quality baseline is Pleias-RAG-1B. Its smaller 350M sibling is the first
-runtime smoke test. The 24 authored fictional cases cover Acadia, Katahdin and
-Atlantic; they are deliberately small plumbing checks, not representative release
-evaluations or a client-ready synthetic dataset.
+The initial Pleias-RAG 350M and 1B candidates failed answer-level review, including
+with their original checkpoints and corrected publisher tokenization. A parser
+pass or the presence of the expected number did not make their answers acceptable.
+The next comparison is the unchanged SmolLM3 3B checkpoint, including bounded
+source questions and inert tool-selection proposals. See the
+[evaluation record](docs/model-evaluation-2026-10-26.md).
+
+Effectiveness determines model and hardware choices. Low-end hardware support is
+not a release requirement. The Samsung S26 remains a device to measure, not a
+ceiling on capability. Compression must demonstrate that it preserves useful
+quality; it is not the default solution to an inadequate model.
+
+The original 24 authored fictional cases are small plumbing checks. A separate
+36-case pilot adds missing/conflicting evidence and source-injection scenarios;
+it stays out of training. Neither set is a client-ready synthetic dataset or proof
+of production reliability. The [training direction](docs/ADR-002-evidence-seeking-training.md)
+prioritizes evidence seeking, grounded tool use and documented public-domain text.
+No Krummholz-specialized weights have been trained yet.
 
 ## Run offline tests
 
@@ -56,7 +73,8 @@ On a suitable machine, after the bounded first run has been checked:
 
     python -m krummholz_llm.smoke --engine runtime/llama-b11669/llama-completion.exe --model models/350m_test.gguf --output artifacts/smoke-350m.json --limit 24 --context 1024 --max-output-tokens 128
 
-Use the accepted 1B model path with the same cases for the quality baseline.
+Use the provisioned 1B model path with the same cases for diagnostic comparison;
+the current 1B candidate is not approved for release.
 A limited run can use --limit 1. Runtime threads, batch size, context, output
 length and timeout are bounded. Defaults are two CPU threads, batch/microbatch 16,
 1024 context tokens and 128 output tokens.
@@ -106,8 +124,10 @@ config/profiles.json for the intended profile boundaries, and
 docs/ADR-001-local-first-baseline.md for implementation scope and release gates.
 Models and runtime binaries are separate artifacts, ignored by Git.
 
-For a paired Android device, docs/android-first-run.md contains the staged manual
-procedure. The external_io module can export a bounded raw prompt and parse a
+For the forthcoming alpha, [the installation guide](docs/android-alpha.md)
+describes browser download and local import without ADB. The older
+docs/android-first-run.md is a historical diagnostic procedure for a rejected
+350M candidate, not a recommended setup path. The external_io module can export a bounded raw prompt and parse a
 captured completion locally. It never invokes ADB, provisions files or runs a
 model, and its parser does not attest the provenance of an imported capture.
 

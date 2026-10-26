@@ -1,8 +1,8 @@
 # Krummholz LLMs Android alpha
 
-**Draft guide for 0.1.0-alpha.1 (build 1). Build, model and release validation are pending.** The checked-in development model manifest is unprovisioned, so its setup buttons remain disabled until the release build contains the approved model details. The install steps below apply once that verified release is available.
+**Draft guide for 0.1.0-alpha.1 (build 1). Source compilation passes; model, device and release validation are pending.** The checked-in development model manifest is unprovisioned, so its setup buttons remain disabled until the release build contains the approved model details. The install steps below apply once that verified release is available.
 
-The app is a small workspace for asking questions about a passage you supply. Acadia, Katahdin and Atlantic are three workflows using one upstream Pleias RAG model. This alpha does not contain separately trained Krummholz models.
+The app is a small workspace for asking questions about a passage you supply. Acadia, Katahdin and Atlantic are three workflows. The initial upstream Pleias candidates failed quality review, and a replacement is being evaluated. This alpha does not contain separately trained Krummholz models.
 
 ## Install on your Samsung S26
 

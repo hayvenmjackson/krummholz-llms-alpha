@@ -1,5 +1,11 @@
 # Android first-run procedure
 
+**Historical diagnostic only.** The tested 350M model described here did not meet
+the quality bar. Do not use this procedure as a recommended installation path.
+The forthcoming verified alpha will use browser download and local file import;
+see [android-alpha.md](android-alpha.md). The original commands below preserve the
+development record, not an endorsement of this model or quantization choice.
+
 Prepared October 23, 2026. These commands have not been executed on the target
 phone. The operator handles pairing, provisioning and execution. Use only the
 selected paired Samsung device and the dedicated `/data/local/tmp/krummholz-llm`
