@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "scope": "Three fictional development cases, not a production benchmark. Complete parsed answers retained for reproducibility.",
+  "reviewed_at": "2026-10-26T12:28:33.454109+00:00",
+  "reviewers": [
+    "Codex root",
+    "Codex s26_test_setup"
+  ],
+  "independent_human_review": false,
+  "model_approved": false,
+  "exclude_from_training": true,
+  "source_report_sha256": "d34c05f4a5473e3780ac840eee1ce087ee1d0eded544a16e5ba3275a9c34c5e6",
+  "workflow_run_url": "https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40318614579",
+  "model_sha256": "379635112fa55b4d83b01e321efc6353088472d885d4d23cd80db0ae3b089ec0",
+  "source": {
+    "id": "pleias-rag-1b-upstream-bf16-gguf",
+    "repository": "PleIAs/Pleias-RAG-1B-gguf",
+    "revision": "443722afa1237b00a2e18d9eb2f1f1dd9dc37ad6",
+    "filename": "Pleias-RAG-1B.gguf",
+    "bytes": 2393458272,
+    "sha256": "c6e7da82daf0e45b4946de035e6dcc7e0eebdd11433cbb66cd8a4567bfcb67e7",
+    "download_url": "https://huggingface.co/PleIAs/Pleias-RAG-1B-gguf/resolve/443722afa1237b00a2e18d9eb2f1f1dd9dc37ad6/Pleias-RAG-1B.gguf",
+    "source_repository": "PleIAs/Pleias-RAG-1B",
+    "source_revision": "b8c3f1ab2c13e1d44305eee46662310cdbfd72a1",
+    "source_safetensors_sha256": "0fc0df86988365766bd8ccb29f2cfaf1d4efaefd7a909f32161a270b2f280d9d",
+    "publisher_license": "Apache-2.0",
+    "architecture": "LlamaForCausalLM",
+    "max_context_tokens": 4096,
+    "status": "unchanged_upstream_baseline_not_krummholz_trained"
+  },
+  "precision": "original F16/F32 GGUF; tensor payload unchanged, gpt-2 pre-tokenizer metadata added",
+  "tokenizer_parity_passed": true,
+  "cases": [
+    {
+      "profile": "acadia",
+      "request": {
+        "query": "How long is the return window?",
+        "sources": [
+          {
+            "id": "acadia/demo-policy",
+            "text": "Fictional demonstration policy: unused items may be returned within 30 days. Refunds above 100 demo credits require a human reviewer."
+          }
+        ]
+      },
+      "request_sha256": "458d9d2a698276daa339b7ad59b2d127a6ebcada6597db33385b3aaa9d468356",
+      "answer": "The return window for a return policy is 30 days. This is explicitly stated in the sources [1].",
+      "citations": [
+        {
+          "number": 1,
+          "source_number": 1,
+          "source_id": "acadia/demo-policy",
+          "quote": "Refunds above 100 demo credits require a human reviewer",
+          "validation": "literal_quote_match_only"
+        }
+      ],
+      "elapsed_seconds": 14.863,
+      "structural_smoke_passed": true,
+      "semantic_review": {
+        "reviewer_kind": "agent",
+        "decision": "fail",
+        "rationale": "The answer says 30 days but its only quotation concerns the 100-demo-credit review threshold. The quotation does not support the asserted return window."
+      }
+    },
+    {
+      "profile": "katahdin",
+      "request": {
+        "query": "What survival percentage did the validated calculator report?",
+        "sources": [
+          {
+            "id": "katahdin/demo-result",
+            "text": "Fictional training plot: a validated calculator reports 90 surviving seedlings out of 100 initially planted, equal to 90% survival. This is invented demonstration data, not a field observation."
+          }
+        ]
+      },
+      "request_sha256": "a16675a8e9c2c28a8413da2be35d12b6c1365727d6f3c03654128f6a4287d71c",
+      "answer": "According to the validated calculator, the seedlings were 90% surviving after 100 initially planted seeds. This is a validated calculation that reports 90 surviving seedlings out of 100 initially planted seeds, which is equal to 90% survival [1].",
+      "citations": [
+        {
+          "number": 1,
+          "source_number": 1,
+          "source_id": "katahdin/demo-result",
+          "quote": "a validated calculator reports 90 surviving seedlings out of 100 initially planted, equal to 90% survival",
+          "validation": "literal_quote_match_only"
+        }
+      ],
+      "elapsed_seconds": 16.214,
+      "structural_smoke_passed": true,
+      "semantic_review": {
+        "reviewer_kind": "agent",
+        "decision": "needs_correction",
+        "rationale": "The reported 90% survival and its quotation agree with the source. The response changes initially planted seedlings into seeds, a distinction the source does not support."
+      }
+    },
+    {
+      "profile": "atlantic",
+      "request": {
+        "query": "What is the project codename?",
+        "sources": [
+          {
+            "id": "atlantic/demo-note",
+            "text": "Fictional local note: the demonstration project's codename is Paper Lantern. No messages, purchases or file changes have been authorized."
+          }
+        ]
+      },
+      "request_sha256": "90c28005c6ae4083b6bb769ee9f0d1c1597b428c65074cab59f12bc06d19f10d",
+      "answer": "A project codename represents a structured way to identify and document a project's components. Based on the available documentation, I can explain how this system works, though it's important to note that this represents just one implementation of a codename system.\n\nIn project documentation, a project codename typically serves as a unique identifier that allows for easy tracking and communication between different parts of a project[1].\n\nThe system works by assigning a specific name to each component of a project, such as \"Paper Lantern\" for a demonstration project. This naming convention ensures clear identification and prevents confusion between different parts of the project[2].\n\nTo illustrate how this works in practice, let me share an example from the documentation system: In the case of a demonstration project, the codename system is implemented as a dedicated system that handles file changes and message handling[3].\n\nWhile this represents just one implementation of a codename system, it demonstrates how project documentation can be structured around clear naming conventions. The key advantage of this approach is that it helps prevent confusion between different parts of the project and ensures proper documentation of each component's role.\n\nNote: This information is based on a specific implementation of a codename system, and different systems may use different naming conventions. If you're working with a project, you may want to consult your specific documentation guidelines for the most accurate and comprehensive naming conventions.",
+      "citations": [
+        {
+          "number": 1,
+          "source_number": 1,
+          "source_id": "atlantic/demo-note",
+          "quote": "the demonstration project's codename is Paper Lantern",
+          "validation": "literal_quote_match_only"
+        },
+        {
+          "number": 2,
+          "source_number": 1,
+          "source_id": "atlantic/demo-note",
+          "quote": "the demonstration project's codename is Paper Lantern",
+          "validation": "literal_quote_match_only"
+        },
+        {
+          "number": 3,
+          "source_number": 1,
+          "source_id": "atlantic/demo-note",
+          "quote": "the demonstration project's codename is Paper Lantern",
+          "validation": "literal_quote_match_only"
+        }
+      ],
+      "elapsed_seconds": 58.299,
+      "structural_smoke_passed": true,
+      "semantic_review": {
+        "reviewer_kind": "agent",
+        "decision": "fail",
+        "rationale": "The question asks for a codename. The response invents a component-management system, implementation and documentation benefits. Repeating the actual codename quotation does not support those claims."
+      }
+    }
+  ]
+}

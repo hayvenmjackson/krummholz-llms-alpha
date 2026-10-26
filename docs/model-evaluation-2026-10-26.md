@@ -27,7 +27,7 @@ Transformers and source hashes, to distinguish model behavior from conversion.
 | 1B original checkpoint | Three superficial smoke checks passed; answer-level review found unrelated supporting quotations and a misread codename question. | Reject. |
 | 1B corrected 16-bit GGUF | Three superficial smoke checks passed; unrelated citations persisted and one answer invented a codename/component-management system absent from the source. | Reject. |
 | 1B Q8 and Q4 | Q8 failed one of three smoke gates; Q4 failed all three. | Reject. |
-| SmolLM3 3B original BF16 | Reference probe prepared and dispatched; full output review pending. | Unselected. |
+| SmolLM3 3B original BF16 | All seven probes completed. Five source-QA/missing-evidence/injection answers and the provided-source tool choice passed agent semantic review. The current-public-fact case failed to select web search. | Continue broader evaluation; not approved. |
 
 The 1B return-policy answer stated the correct 30-day window but cited the
 separate refund-review threshold. The 1B forestry answer largely followed the
@@ -38,15 +38,35 @@ note. All inputs were fictional; no client or personal data was used.
 Evidence: [original-checkpoint run](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40318797250),
 [1B precision comparisons](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40318614579),
 and [readable 16-bit evidence](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40319795509).
+The three complete parsed 16-bit answers, original fictional requests, provenance
+hashes and review rationales are also retained in the
+[versioned review record](../evaluation/pleias-1b-f16-review-2026-10-26.json).
 Review was performed by development agents against complete generated outputs.
 It is not a claim of independent human review or physical S26 testing.
 
 ## Next comparison and release gates
 
+The [original SmolLM3 probe](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/runs/40321308880)
+ran the unchanged BF16 checkpoint on hosted CPU. Its complete outputs and review
+are in the [versioned SmolLM3 record](../evaluation/smollm3-bf16-review-2026-10-26.json).
+It gave relevant source quotations on the five Q&A probes. For the live-weather
+request, however, it proposed a generic answer and unsupported knowledge-cutoff
+claim instead of the available search tool. That is a recorded failure, not a
+reason to change the expected tool selection. No actual tool execution occurred.
+Review also found that this run supplied nested OpenAI-style function definitions,
+whereas the pinned publisher example passes flat function definitions directly to
+the template. That integration difference needs a controlled comparison before
+the failure can be attributed to the model weights. The original failed result
+and its actual rendered prompt are preserved.
+Individual cases took approximately 77–162 seconds in this CPU reference run;
+these are not Android performance measurements.
+
 The unchanged SmolLM3 checkpoint is pinned in `config/smollm3-reference.json`.
 Its seven development probes include supported source questions, missing evidence,
 source injection and two inert tool proposals. The program does not execute tools
-or approve a model. The separate 36-case pilot is excluded from training.
+or approve a model. The separate 36-case pilot is excluded from training. Broader
+original-checkpoint testing and a direct BF16 native-runtime comparison are next;
+the frozen development prompts are preserved rather than tuned against failures.
 
 A promising candidate must retain its useful behavior through the selected native
 runtime and pass broader answer-level evaluation. Its exact model bytes, prompt
