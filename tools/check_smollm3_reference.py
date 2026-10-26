@@ -115,6 +115,20 @@ def request_for(case: dict) -> dict:
     return request
 
 
+def diagnostic_cases(spec: dict, tool_format: bool) -> list[dict]:
+    if not tool_format:
+        return spec["cases"]
+    return [dict(case, id=case["id"] + "--" + variant, base_case_id=case["id"], tool_format=variant)
+            for variant in ("original_wrapped_json", "publisher_flat_dict")
+            for case in spec["cases"] if case["kind"] == "tool"]
+
+
+def template_tools(spec: dict, case: dict) -> list:
+    if case.get("tool_format") == "publisher_flat_dict":
+        return [tool["function"] for tool in spec["tools"]]
+    return [json.dumps(tool, ensure_ascii=False) for tool in spec["tools"]]
+
+
 def strict_json(raw: str):
     def unique(pairs):
         obj = {}
@@ -177,6 +191,13 @@ def inspect_output(raw: str, case: dict, request: dict) -> dict:
 
 def self_test() -> None:
     spec = load_spec()
+    assert diagnostic_cases(spec, False) == spec["cases"]
+    variants = diagnostic_cases(spec, True)
+    assert len(variants) == 4 and all(case["kind"] == "tool" for case in variants)
+    assert request_for(variants[0]) == request_for(variants[2])
+    assert request_for(variants[1]) == request_for(variants[3])
+    assert all(isinstance(tool, str) for tool in template_tools(spec, variants[0]))
+    assert template_tools(spec, variants[2]) == [json.loads(tool)["function"] for tool in template_tools(spec, variants[0])]
     for case in spec["cases"]:
         request_for(case)
     request = {"query": "Which label?", "sources": [{"id": "demo", "text": "The fictional label is Cedar."}]}
@@ -219,6 +240,8 @@ def main() -> int:
     parser.add_argument("--work", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--tool-format-diagnostic", action="store_true",
+                        help="Separate four-run comparison of original wrapped schemas and publisher flat dictionaries")
     args = parser.parse_args()
     if args.self_test:
         self_test()
@@ -229,13 +252,20 @@ def main() -> int:
     work, output = args.work.resolve(), args.output.resolve()
     work.mkdir(parents=True, exist_ok=True)
     output.mkdir(parents=True, exist_ok=True)
-    report_path = output / "smollm3-reference.json"
+    report_path = output / ("smollm3-tool-format.json" if args.tool_format_diagnostic else "smollm3-reference.json")
     report = {"status": "preparing", "scope": "Seven fictional development probes; not a representative evaluation.",
               "quality_accepted": False, "release_authorized": False, "semantic_review": "not_reviewed",
               "tool_execution_available": False, "cases": [], "source_commit": os.environ.get("GITHUB_SHA")}
     write_json(report_path, report)
     try:
         spec = load_spec()
+        cases = diagnostic_cases(spec, args.tool_format_diagnostic)
+        if args.tool_format_diagnostic:
+            report.update(scope="Two unchanged tool-selection development requests across two schema renderings; four runs.",
+                          tool_format_diagnostic=True,
+                          independent_variable="Original OpenAI-style wrapper JSON strings versus publisher flat function dictionaries.",
+                          unchanged="Same model/runtime, user requests, system text, function names/descriptions/parameters, fixed date and decoding.",
+                          original_evidence_preserved=True)
         report.update(repository=REPOSITORY, revision=REVISION, source_files=spec["files"],
                       publisher_license=spec["publisher_license"], provenance_scope=spec["provenance_scope"],
                       probe_spec_sha256=canonical_sha(spec), runtime_script_sha256=sha(Path(__file__)),
@@ -263,6 +293,16 @@ def main() -> int:
         torch.use_deterministic_algorithms(True)
         set_seed(42)
         memory = {line.split(":")[0]: int(line.split()[1]) for line in Path("/proc/meminfo").read_text().splitlines()}
+        cpu = {}
+        for line in Path("/proc/cpuinfo").read_text().split("\n\n", 1)[0].splitlines():
+            if ":" in line:
+                key, value = line.split(":", 1)
+                if key.strip() in ("model name", "vendor_id", "flags", "Features", "CPU architecture"):
+                    cpu[key.strip()] = value.strip()
+        report["hardware"] = {"machine": platform.machine(), "logical_cpus": os.cpu_count(),
+                              "cpu": cpu, "mem_total_kib": memory["MemTotal"],
+                              "mem_available_before_load_kib": memory["MemAvailable"]}
+        write_json(report_path, report)
         if memory["MemAvailable"] < 9 * 1024 * 1024:
             raise RuntimeError("Less than 9 GiB RAM available for the bounded original BF16 checkpoint")
         modules = ("transformers.models.smollm3.modeling_smollm3", "transformers.generation.utils",
@@ -300,11 +340,13 @@ def main() -> int:
 
         old_handler = signal.signal(signal.SIGALRM, hard_timeout)
         try:
-            for case in spec["cases"]:
+            for case in cases:
                 request = request_for(case)
                 result = {"id": case["id"], "kind": case["kind"], "request_sha256": canonical_sha(request),
-                          "human_review_criteria": case["review"], "semantic_quality": "not_reviewed",
+                          "review_criteria": case["review"], "semantic_quality": "not_reviewed",
                           "authorized_actions": [], "tool_executed": False}
+                if args.tool_format_diagnostic:
+                    result.update(base_case_id=case["base_case_id"], tool_format=case["tool_format"])
                 if time.monotonic() >= total_deadline:
                     result.update(status="not_run_budget_exhausted")
                     report["cases"].append(result)
@@ -315,7 +357,9 @@ def main() -> int:
                             {"role": "user", "content": json.dumps(request, ensure_ascii=False)}]
                 template_args = {"enable_thinking": False, "strftime_now": lambda fmt: fixed_date.strftime(fmt)}
                 if case["kind"] == "tool":
-                    template_args["xml_tools"] = [json.dumps(tool, ensure_ascii=False) for tool in spec["tools"]]
+                    # The publisher variant passes flat dictionaries directly;
+                    # default execution preserves the original wrapped JSON strings.
+                    template_args["xml_tools"] = template_tools(spec, case)
                 prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True, **template_args)
                 encoded = tokenizer(prompt, add_special_tokens=False, return_tensors="pt", return_token_type_ids=False)
                 input_ids = encoded["input_ids"][0].tolist()
@@ -367,7 +411,7 @@ def main() -> int:
             signal.alarm(0)
             signal.signal(signal.SIGALRM, old_handler)
         report.update(status="completed", elapsed_seconds=round(time.monotonic() - started, 3),
-                      all_cases_completed=len(report["cases"]) == 7 and all(c["status"] == "completed" for c in report["cases"]))
+                      all_cases_completed=len(report["cases"]) == len(cases) and all(c["status"] == "completed" for c in report["cases"]))
         write_json(report_path, report)
         # Success means diagnostic execution finished, never semantic acceptance.
         return 0 if report["all_cases_completed"] else 2
