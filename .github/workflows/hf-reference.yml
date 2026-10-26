@@ -1,0 +1,62 @@
+name: Original HF checkpoint reference
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - model: 1b
+            case_timeout: 480
+          - model: 350m
+            case_timeout: 180
+    env:
+      OMP_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      TOKENIZERS_PARALLELISM: "false"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      HF_HUB_DISABLE_IMPLICIT_TOKEN: "1"
+      CUDA_VISIBLE_DEVICES: ""
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned CPU reference packages
+        timeout-minutes: 8
+        run: |
+          python -m pip install --disable-pip-version-check torch==2.9.1+cpu --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install --disable-pip-version-check transformers==4.57.1 tokenizers==0.22.2 safetensors==0.6.2 huggingface-hub==0.36.0
+          python -m pip check
+          mkdir -p "$RUNNER_TEMP/hf-reference"
+          python -m pip freeze > "$RUNNER_TEMP/hf-reference/python-packages.txt"
+      - name: Verify source guards without loading a model
+        run: python -B tools/check_hf_reference.py --self-test
+      - name: Evaluate exact original safetensors on fictional examples
+        timeout-minutes: 27
+        env:
+          MODEL: ${{ matrix.model }}
+          CASE_TIMEOUT: ${{ matrix.case_timeout }}
+        run: |
+          python -B tools/check_hf_reference.py --model "$MODEL" --case-timeout "$CASE_TIMEOUT" \
+            --work "$RUNNER_TEMP/hf-source" --output "$RUNNER_TEMP/hf-reference"
+      - name: Retain complete fictional diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hf-reference-${{ matrix.model }}
+          path: ${{ runner.temp }}/hf-reference/
+          if-no-files-found: error
+          retention-days: 14
