@@ -5,6 +5,13 @@ Status: initial implementation decision for a bounded local construction milesto
 
 ## Decisions
 
+October 26 update: demonstrated effectiveness determines model selection. Support
+for low-end hardware is no longer a release requirement. Evaluate the larger
+unchanged baseline before choosing compression; a smaller download earns its place
+only if it preserves the needed task quality. The Samsung S26 remains a device to
+measure, rather than a ceiling on model capability. Distinguish model quality
+from conversion/runtime defects with an original-checkpoint reference run.
+
 Use one application platform with Acadia, Katahdin and Atlantic profiles. Separate
 their source namespaces, policy descriptions and evaluation cases. Start with
 Pleias-RAG-1B for quality and the matching 350M model for a low-cost runtime check.

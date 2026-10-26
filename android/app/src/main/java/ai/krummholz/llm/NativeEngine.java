@@ -44,6 +44,17 @@ public final class NativeEngine implements AutoCloseable {
         } finally { activeOperation.compareAndSet(operation, 0); }
     }
 
+    /** Instrumentation seam: exact input IDs from the same tokenizer used by generate. */
+    int[] tokenizeForTest(String rawPrompt) {
+        byte[] prompt = encodeUtf8(rawPrompt);
+        long operation = beginOperation();
+        try {
+            int[] ids = nativeTokenize(requireHandle(), operation, prompt);
+            if (ids == null) throw new IllegalStateException("Native tokenization returned no result.");
+            return ids;
+        } finally { activeOperation.compareAndSet(operation, 0); }
+    }
+
     /** Cancels only the active call, including its Java-to-JNI handoff; idle calls do nothing. */
     public void cancel() {
         long operation = activeOperation.get();
@@ -90,6 +101,7 @@ public final class NativeEngine implements AutoCloseable {
     private static native void nativeLoadModel(long handle, long operation, byte[] path, int contextTokens, int threads);
     private static native byte[] nativeGenerate(long handle, long operation, byte[] prompt, int maxOutputTokens,
                                                ProgressListener listener);
+    private static native int[] nativeTokenize(long handle, long operation, byte[] prompt);
     private static native void nativeCancel(long handle, long operation);
     private static native void nativeRelease(long handle);
 }

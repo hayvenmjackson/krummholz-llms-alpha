@@ -77,7 +77,8 @@ public final class Protocol {
     public static String prompt(Request request, int contextTokens, int outputTokens) {
         if (contextTokens < 512 || contextTokens > 4096 || outputTokens < 32 || outputTokens > 1024)
             throw new ValidationException("Unsupported context or answer budget.");
-        StringBuilder text = new StringBuilder("<|query_start|>").append(request.query).append("<|query_end|>\n");
+        // Match the publisher tokenizer postprocessor: one initial EOS, no automatic BOS.
+        StringBuilder text = new StringBuilder("<|end_of_text|><|query_start|>").append(request.query).append("<|query_end|>\n");
         for (int i = 0; i < request.sources.size(); i++)
             text.append("<|source_start|><|source_id|>").append(i + 1).append(' ')
                 .append(request.sources.get(i).text).append("<|source_end|>\n");

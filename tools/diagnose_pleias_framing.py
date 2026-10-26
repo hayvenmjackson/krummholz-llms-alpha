@@ -34,6 +34,18 @@ VARIANTS = (("baseline", False, False), ("eos_only", False, True),
 EXPECTATIONS = {"acadia": "30", "katahdin": "90", "atlantic": "paper lantern"}
 
 
+def publisher_raw_prompt(framed: str) -> str:
+    """HF's post-processor supplies EOS; remove the production adapter's one copy.
+
+    This also supports historical prompts before that production fix, so the
+    four diagnostic variants remain controlled after build_prompt is corrected.
+    """
+    raw = framed[len(EOS):] if framed.startswith(EOS) else framed
+    if not raw.startswith("<|query_start|>") or not raw.endswith("<|language_start|>\n"):
+        raise ValueError("unexpected production framing; do not silently alter diagnostic input")
+    return raw
+
+
 def exact_read(handle, size: int) -> bytes:
     value = handle.read(size)
     if len(value) != size:
@@ -203,6 +215,15 @@ def completion(executable: Path, model: Path, prompt: str, request, expected: st
 
 def self_test() -> None:
     """Exercise metadata relocation and payload preservation without any model."""
+    raw_prompt = "<|query_start|>test<|query_end|>\n<|language_start|>\n"
+    assert publisher_raw_prompt(raw_prompt) == raw_prompt
+    assert publisher_raw_prompt(EOS + raw_prompt) == raw_prompt
+    try:
+        publisher_raw_prompt(EOS + EOS + raw_prompt)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("double EOS must not be silently repaired")
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary)
         items = [("tokenizer.ggml.model", 8, encoded_string("gpt2")),
@@ -285,7 +306,13 @@ def main() -> int:
     for profile in EXPECTATIONS:
         data = json.loads((ROOT / "data" / profile / "example.json").read_text(encoding="utf-8"))
         request = validate_request(data, profile)
-        prompt = build_prompt(request, 4096, 1024).text
+        prompt = publisher_raw_prompt(build_prompt(request, 4096, 1024).text)
+        # Production now supplies the HF postprocessor's initial EOS explicitly.
+        # This diagnostic still compares raw publisher text plus controlled variants.
+        if prompt.startswith(EOS):
+            prompt = prompt[len(EOS):]
+        if EOS in prompt:
+            raise ValueError("unexpected duplicate EOS in publisher prompt")
         cases[profile] = request, prompt
     # Extra probes exercise Unicode, contractions and digit boundaries without inference.
     probes = {key: value[1] for key, value in cases.items()}

@@ -92,7 +92,9 @@ def build_prompt(request: Request, context_tokens: int = 2048, output_tokens: in
         raise InputError("Pleias baseline context must be between 512 and 4096 tokens")
     if not 32 <= output_tokens <= 1024:
         raise InputError("output budget must be between 32 and 1024 tokens")
-    text = f"<|query_start|>{request.query}<|query_end|>\n"
+    # The publisher's tokenizer postprocessor prepends EOS (token 2) to input.
+    # Raw llama.cpp completion has no HF postprocessor, so include it exactly once.
+    text = f"<|end_of_text|><|query_start|>{request.query}<|query_end|>\n"
     for number, source in enumerate(request.sources, 1):
         text += f"<|source_start|><|source_id|>{number} {source.text}<|source_end|>\n"
     text += "<|language_start|>\n"

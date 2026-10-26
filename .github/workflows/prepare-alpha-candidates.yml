@@ -1,0 +1,52 @@
+name: Compare pinned 1B alpha candidates
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - model: 1b
+            quantization: F16
+          - model: 1b
+            quantization: Q8_0
+          - model: 1b
+            quantization: Q4_K_M
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install exact publisher tokenizer implementation
+        run: python -m pip install tokenizers==0.22.2
+      - name: Check candidate preparation invariants without inference
+        run: python -B tools/prepare_alpha_candidate.py --self-test
+      - name: Prepare and evaluate pinned precision candidate
+        env:
+          CANDIDATE_MODEL: ${{ matrix.model }}
+          CANDIDATE_PRECISION: ${{ matrix.quantization }}
+        run: >-
+          python -B tools/prepare_alpha_candidate.py
+          --model "$CANDIDATE_MODEL" --quantization "$CANDIDATE_PRECISION"
+          --work "$RUNNER_TEMP/candidate-work" --output "$RUNNER_TEMP/candidate-output"
+          --timeout 180
+      - name: Retain candidate and fictional evidence, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-${{ matrix.model }}-${{ matrix.quantization }}
+          path: ${{ runner.temp }}/candidate-output/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

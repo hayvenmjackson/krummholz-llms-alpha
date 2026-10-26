@@ -20,7 +20,7 @@ namespace {
 constexpr int kBatchSize = 16;
 constexpr size_t kMaxPromptBytes = 65536;
 constexpr size_t kMaxOutputBytes = 262144;
-constexpr int64_t kMaxModelBytes = 2LL * 1024 * 1024 * 1024;
+constexpr int64_t kMaxModelBytes = 4LL * 1024 * 1024 * 1024;
 constexpr int64_t kOperationMillis = 180000;
 
 int64_t nowMillis() {
@@ -172,6 +172,47 @@ std::string tokenPiece(const llama_vocab * vocab, llama_token token) {
     piece.resize(static_cast<size_t>(written));
     return piece;
 }
+
+void validatePleiasTokenizer(const llama_model * model) {
+    char pre[32];
+    const llama_vocab * vocab = llama_model_get_vocab(model);
+    if (llama_model_meta_val_str(model, "tokenizer.ggml.pre", pre, sizeof(pre)) != 5 ||
+        std::strcmp(pre, "gpt-2") != 0 || llama_vocab_type(vocab) != LLAMA_VOCAB_TYPE_BPE ||
+        llama_vocab_n_tokens(vocab) != 65536 || llama_vocab_eos(vocab) != 2 ||
+        tokenPiece(vocab, 2) != "<|end_of_text|>" ||
+        tokenPiece(vocab, 65517) != "<|query_start|>" ||
+        tokenPiece(vocab, 65522) != "<|language_start|>")
+        throw std::invalid_argument("The model does not have the verified Pleias tokenizer metadata.");
+}
+
+std::vector<llama_token> tokenizePrompt(Engine & engine, const std::string & prompt, int maxOutput) {
+    if (!engine.model) throw std::runtime_error("Load a verified model before tokenization.");
+    const std::string prefix = "<|end_of_text|><|query_start|>";
+    const std::string suffix = "<|language_start|>\n";
+    if (prompt.compare(0, prefix.size(), prefix) != 0 || prompt.size() < suffix.size() ||
+        prompt.compare(prompt.size() - suffix.size(), suffix.size(), suffix) != 0)
+        throw std::invalid_argument("The prompt must preserve the verified Pleias framing.");
+    engine.check();
+    const llama_vocab * vocab = llama_model_get_vocab(engine.model.get());
+    // The caller supplies exactly the publisher's initial EOS. Do not infer any
+    // additional BOS/EOS from GGUF defaults; control-token parsing stays enabled.
+    const int probe = llama_tokenize(vocab, prompt.data(), static_cast<int>(prompt.size()),
+                                     nullptr, 0, false, true);
+    if (probe >= 0 || probe == INT32_MIN)
+        throw std::invalid_argument("The prompt could not be tokenized within its bounds.");
+    const int needed = -probe;
+    if (needed > engine.contextTokens - maxOutput - 16)
+        throw std::invalid_argument("Prompt plus output exceeds the actual model token budget.");
+    std::vector<llama_token> tokens(static_cast<size_t>(needed));
+    if (llama_tokenize(vocab, prompt.data(), static_cast<int>(prompt.size()), tokens.data(),
+                       needed, false, true) != needed)
+        throw std::runtime_error("The prompt could not be tokenized consistently.");
+    if (tokens.size() < 2 || tokens.front() != 2 || tokens[1] != 65517 ||
+        std::count(tokens.begin(), tokens.end(), 2) != 1)
+        throw std::invalid_argument("The prompt must contain exactly one initial EOS token.");
+    engine.check();
+    return tokens;
+}
 } // namespace
 
 extern "C" JNIEXPORT jlong JNICALL
@@ -232,10 +273,28 @@ Java_ai_krummholz_llm_NativeEngine_nativeLoadModel(
             throw std::invalid_argument("This alpha supports decoder-only text models.");
         if (llama_model_n_ctx_train(loaded.get()) < contextTokens)
             throw std::invalid_argument("Requested context exceeds the model's trained context.");
+        validatePleiasTokenizer(loaded.get());
         engine->contextTokens = contextTokens;
         engine->threads = threads;
         engine->model = std::move(loaded);
     } catch (...) { translateException(env); }
+}
+
+extern "C" JNIEXPORT jintArray JNICALL
+Java_ai_krummholz_llm_NativeEngine_nativeTokenize(
+        JNIEnv * env, jclass, jlong handle, jlong ticket, jbyteArray promptBytes) {
+    try {
+        const std::string prompt = readBytes(env, promptBytes, kMaxPromptBytes);
+        auto engine = findEngine(handle);
+        Operation operation(*engine, ticket);
+        const auto tokens = tokenizePrompt(*engine, prompt, 0);
+        const std::vector<jint> ids(tokens.begin(), tokens.end());
+        jintArray result = env->NewIntArray(static_cast<jsize>(ids.size()));
+        if (result == nullptr) throw JavaException();
+        env->SetIntArrayRegion(result, 0, static_cast<jsize>(ids.size()), ids.data());
+        if (env->ExceptionCheck()) throw JavaException();
+        return result;
+    } catch (...) { translateException(env); return nullptr; }
 }
 
 extern "C" JNIEXPORT jbyteArray JNICALL
@@ -247,19 +306,9 @@ Java_ai_krummholz_llm_NativeEngine_nativeGenerate(
         const std::string prompt = readBytes(env, promptBytes, kMaxPromptBytes);
         auto engine = findEngine(handle);
         Operation operation(*engine, ticket);
-        if (!engine->model) throw std::runtime_error("Load a verified model before generation.");
+        const auto tokens = tokenizePrompt(*engine, prompt, maxTokens);
         const llama_vocab * vocab = llama_model_get_vocab(engine->model.get());
-        const int probe = llama_tokenize(vocab, prompt.data(), static_cast<int>(prompt.size()),
-                                         nullptr, 0, true, true);
-        if (probe >= 0 || probe == INT32_MIN)
-            throw std::invalid_argument("The prompt could not be tokenized within its bounds.");
-        const int needed = -probe;
-        if (needed > engine->contextTokens - maxTokens - 16)
-            throw std::invalid_argument("Prompt plus output exceeds the actual model token budget.");
-        std::vector<llama_token> tokens(static_cast<size_t>(needed));
-        if (llama_tokenize(vocab, prompt.data(), static_cast<int>(prompt.size()), tokens.data(),
-                           needed, true, true) != needed)
-            throw std::runtime_error("The prompt could not be tokenized consistently.");
+        const int needed = static_cast<int>(tokens.size());
         jmethodID progress = nullptr;
         if (listener != nullptr) {
             jclass cls = env->GetObjectClass(listener);

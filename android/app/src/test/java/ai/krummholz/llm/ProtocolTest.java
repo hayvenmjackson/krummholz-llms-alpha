@@ -18,7 +18,7 @@ public class ProtocolTest {
         assertThrows(Protocol.ValidationException.class, action::run);
     }
     @Test public void exactPromptFraming() {
-        assertEquals("<|query_start|>What is the return window?<|query_end|>\n"
+        assertEquals("<|end_of_text|><|query_start|>What is the return window?<|query_end|>\n"
             + "<|source_start|><|source_id|>1 Unused items may be returned within 30 days.<|source_end|>\n"
             + "<|language_start|>\n", Protocol.prompt(request(), 2048, 512));
     }

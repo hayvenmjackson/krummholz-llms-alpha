@@ -63,6 +63,8 @@ public final class NativeInferenceTest {
                     .put("context", CONTEXT).put("threads", THREADS)
                     .put("elapsed_ms", SystemClock.elapsedRealtime() - loadStarted));
 
+            verifyPublisherTokenParity(engine, acadia, katahdin, atlantic);
+
             Protocol.Answer first = complete(engine, acadia, "acadia-first", "30 days");
             Protocol.Answer second = complete(engine, atlantic, "atlantic", "Paper Lantern");
             assertFalse("A later profile retained a previous fixture's fact.",
@@ -95,6 +97,53 @@ public final class NativeInferenceTest {
             assertTrue("A cancelled request must not return a displayable partial completion.", cancelled);
             Protocol.Answer afterCancel = complete(engine, acadia, "acadia-after-cancel", "30 days");
             assertEquals("Cancellation left state in the next request.", snapshot(first), snapshot(afterCancel));
+        }
+    }
+
+    private static void verifyPublisherTokenParity(NativeEngine engine, Protocol.Request acadia,
+                                                   Protocol.Request katahdin, Protocol.Request atlantic) {
+        // Expected IDs are independently produced by the pinned HF tokenizers0.22.2
+        // tokenizer.json (SHA256 dd7acf61196c61741cf95cc0f0a2b920443e44094438d325ab6e65a048fe8be4).
+        // Recorded in Actions40315924744 framing-diagnostic.json; they are identical
+        // for the publisher's350M/1B tokenizer and our corrected GGUF vocabulary.
+        assertArrayEquals("Acadia's real JNI tokens differ from the publisher.", new int[] {
+            2, 65517, 6601, 1465, 351, 265, 1222, 6893, 34, 65518, 189, 65519, 65520, 20,
+            39898, 268, 37075, 4294, 29, 53013, 6820, 712, 359, 8099, 1706, 1374, 3411, 17,
+            9565, 691, 86, 2384, 1800, 59577, 35335, 2921, 249, 2664, 3863, 251, 17,
+            65521, 189, 65522, 189
+        }, engine.tokenizeForTest(Protocol.prompt(acadia, CONTEXT, OUTPUT)));
+        assertArrayEquals("Katahdin's real JNI tokens differ from the publisher.", new int[] {
+            2, 65517, 6869, 12889, 11056, 2035, 265, 33226, 3168, 1281, 1952, 34, 65518,
+            189, 65519, 65520, 20, 39898, 268, 5717, 13715, 29, 249, 33226, 3168, 1281,
+            8491, 3781, 49466, 11277, 18469, 799, 284, 1800, 14765, 36978, 15, 5067, 296,
+            3781, 8, 12889, 17, 1159, 351, 45924, 37075, 1080, 15, 529, 249, 2556, 12398,
+            17, 65521, 189, 65522, 189
+        }, engine.tokenizeForTest(Protocol.prompt(katahdin, CONTEXT, OUTPUT)));
+        assertArrayEquals("Atlantic's real JNI tokens differ from the publisher.", new int[] {
+            2, 65517, 6869, 351, 265, 3175, 11608, 11076, 34, 65518, 189, 65519, 65520, 20,
+            39898, 268, 2647, 4893, 29, 265, 37075, 3175, 590, 11608, 11076, 351, 22686,
+            22015, 949, 17, 1522, 12028, 15, 29273, 406, 3208, 3292, 659, 916, 16140, 17,
+            65521, 189, 65522, 189
+        }, engine.tokenizeForTest(Protocol.prompt(atlantic, CONTEXT, OUTPUT)));
+        Protocol.Request unicodeDigits = Protocol.request("atlantic",
+                "What's 123456789? café, naïve, 東京 🌲", Collections.emptyList());
+        assertArrayEquals("Unicode/digit JNI tokens differ from the publisher.", new int[] {
+            2, 65517, 6869, 590, 47480, 3344, 23309, 34, 37378, 15, 63585, 345, 15, 211,
+            59941, 52242, 225, 114, 65518, 189, 65522, 189
+        }, engine.tokenizeForTest(Protocol.prompt(unicodeDigits, CONTEXT, OUTPUT)));
+
+        String prompt = Protocol.prompt(acadia, CONTEXT, OUTPUT);
+        assertMalformedNativePromptRejected(engine, prompt.substring("<|end_of_text|>".length()));
+        assertMalformedNativePromptRejected(engine, "<|end_of_text|>" + prompt);
+        assertMalformedNativePromptRejected(engine, prompt.substring(0, prompt.length() - 1));
+    }
+
+    private static void assertMalformedNativePromptRejected(NativeEngine engine, String prompt) {
+        try {
+            engine.tokenizeForTest(prompt);
+            fail("Native tokenization accepted malformed publisher framing.");
+        } catch (IllegalArgumentException expected) {
+            // A rejected framing check must not consume or corrupt the next valid operation.
         }
     }
 

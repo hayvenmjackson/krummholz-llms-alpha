@@ -18,7 +18,8 @@ class ExternalCaptureTests(unittest.TestCase):
             target = Path(folder) / "prompt.txt"
             report = export_prompt(REQUEST, "acadia", target, 512, 64)
             content = target.read_bytes()
-        self.assertTrue(content.startswith(b"<|query_start|>"))
+        self.assertTrue(content.startswith(b"<|end_of_text|><|query_start|>"))
+        self.assertEqual(content.count(b"<|end_of_text|>"), 1)
         self.assertIn(b"<|source_id|>1 ", content)
         self.assertTrue(content.endswith(b"<|language_start|>\n"))
         self.assertFalse(report["inference_performed"])
