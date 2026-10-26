@@ -13,14 +13,18 @@ LLVM libc++ (C++ runtime supplied by Android NDK r28.2)
 https://libcxx.llvm.org/
 Apache License 2.0 with LLVM Exceptions. Full text: libcxx-LICENSE.txt.
 
-Pleias RAG 350M (separate model download; not bundled in the APK)
-Publisher: Pleias. Model weights are published under Apache License 2.0.
-https://huggingface.co/PleIAs/Pleias-RAG-350M
-Publisher model revision: db001b29a33532583d14979c3c38ef04b6d59352
-Publisher GGUF revision: e71be595ff79fe6240a5be93661594c81fe8140e
-Krummholz's alpha uses a quantized copy for local inference. Quantization is
-numerical compression, not Krummholz fine-tuning or training. The accompanying
-model manifest records the exact transformation, source and artifact hashes.
+SmolLM3 3B (candidate separate model download; not bundled in the APK)
+Publisher: Hugging Face / HuggingFaceTB. The pinned publisher model card declares
+Apache License 2.0 for the model weights.
+https://huggingface.co/HuggingFaceTB/SmolLM3-3B
+Publisher model revision: a07cc9a04f16550a088caea529712d1d335b0ac1
+The repository at that revision contains no separate LICENSE or NOTICE file.
+Krummholz converts the original BF16 safetensors to GGUF with llama.cpp b11669.
+Changes are Q/K tensor layout permutation and lossless F32 promotion of
+normalization tensors. No quantization or Krummholz training is performed.
+The model manifest and conversion report identify exact sources and hashes.
+The model license does not establish public-domain status of inherited training
+data. The current candidate remains unapproved pending application checks.
 Full license: Apache-2.0.txt.
 
 Gradle wrapper (source/build tooling, not an application runtime component)

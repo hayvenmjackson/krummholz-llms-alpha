@@ -204,9 +204,13 @@ jobs:
           IMAGE: ${{ matrix.image }}
         run: |
           set -euo pipefail
+          # The original BF16 candidate needs more guest RAM than the former tiny model.
+          # Keep a host-memory reserve instead of relying on swap or killing the runner.
+          available_kib=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
+          test "$available_kib" -ge 12582912
           sdkmanager "emulator" "platform-tools" "system-images;android-36;$IMAGE;x86_64"
           echo no | avdmanager create avd -n alpha -k "system-images;android-36;$IMAGE;x86_64" --force
-          "$ANDROID_HOME/emulator/emulator" -avd alpha -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 4096 -partition-size 24576 > emulator-boot.log 2>&1 &
+          "$ANDROID_HOME/emulator/emulator" -avd alpha -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 10240 -partition-size 24576 > emulator-boot.log 2>&1 &
           adb wait-for-device
           timeout 180 sh -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
           adb shell input keyevent 82

@@ -1,11 +1,13 @@
 {
   "approved": false,
-  "name": "Pleias RAG 350M · Q4_K_M",
-  "filename": "pleias-rag-350m-q4_k_m.gguf",
-  "bytes": 0,
-  "sha256": "",
+  "name": "SmolLM3 3B · original BF16 candidate",
+  "protocol": "smollm3-chat-v1",
+  "filename": "SmolLM3-3B-BF16.gguf",
+  "bytes": 6158339904,
+  "sha256": "8bb048dbbc726c8e10bdf41575f5209b9b68a27b0ec15390b5031846047cec9b",
   "download_url": "",
   "license": "Apache-2.0",
-  "upstream": "PleIAs/Pleias-RAG-350M",
-  "note": "Release provisioning must replace this manifest with the verified quantized artifact."
+  "upstream": "HuggingFaceTB/SmolLM3-3B",
+  "revision": "a07cc9a04f16550a088caea529712d1d335b0ac1",
+  "note": "Candidate only. Direct BF16 conversion preserves all tensor values; broader quality, Android runtime and distribution checks remain. No Krummholz training has occurred."
 }

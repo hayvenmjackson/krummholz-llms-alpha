@@ -18,13 +18,15 @@ model, installation and runtime validation, with its checksum and testing status
 
 Status: a local inference/evaluation harness around unchanged upstream model weights.
 This is not a Krummholz-trained model, a phone benchmark, or a production service.
-No client data, cloud inference, external tools or paid compute are used here.
+Diagnostic inference uses hosted CI and fictional inputs. No client data,
+live external-tool execution or separately purchased compute is used here.
 
 The initial Pleias-RAG 350M and 1B candidates failed answer-level review, including
 with their original checkpoints and corrected publisher tokenization. A parser
 pass or the presence of the expected number did not make their answers acceptable.
-The next comparison is the unchanged SmolLM3 3B checkpoint, including bounded
-source questions and inert tool-selection proposals. See the
+The unchanged SmolLM3 3B checkpoint is now under evaluation, including source
+questions and inert tool-selection proposals. Its direct BF16 native conversion
+preserves all tensor values. Broader held-out evaluation is running. See the
 [evaluation record](docs/model-evaluation-2026-10-26.md).
 
 Effectiveness determines model and hardware choices. Low-end hardware support is
@@ -39,6 +41,11 @@ of production reliability. The [training direction](docs/ADR-002-evidence-seekin
 prioritizes evidence seeking, grounded tool use and documented public-domain text.
 No Krummholz-specialized weights have been trained yet.
 
+The first [public-domain text intake](docs/public-domain-pilot-audit.md) acquired
+six CC0 PDFs and retained 30 reviewed passages (2,781 words) from five. Train,
+development and test material stays separate. This is a small audited pilot;
+the raw documents and cleaned corpus are not published with the source.
+
 ## Run offline tests
 
 From this directory, using Python 3.10 or later:
@@ -52,7 +59,11 @@ Dry runs do not invoke a model, runtime process, network or external service.
 GitHub Actions repeats these checks on each push and pull request. The linked
 workflow logs provide a public record of the result for each source revision.
 
-## Run a baseline only after memory and provisioning checks
+## Historical Pleias diagnostics (rejected release candidates)
+
+The commands below reproduce earlier diagnostics. They are not the current model
+recommendation; SmolLM3 source pins and comparison workflows are under `config/`
+and `.github/workflows/`. Do not run a large model on a memory-constrained laptop.
 
 The provisioned b11669 runtime uses llama-completion.exe for raw completion.
 The newer llama-cli.exe has a different chat/server path and is intentionally

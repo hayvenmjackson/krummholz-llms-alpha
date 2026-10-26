@@ -55,9 +55,13 @@ claim instead of the available search tool. That is a recorded failure, not a
 reason to change the expected tool selection. No actual tool execution occurred.
 Review also found that this run supplied nested OpenAI-style function definitions,
 whereas the pinned publisher example passes flat function definitions directly to
-the template. That integration difference needs a controlled comparison before
-the failure can be attributed to the model weights. The original failed result
-and its actual rendered prompt are preserved.
+the template. The [controlled comparison](../evaluation/smollm3-tool-format-review-2026-10-26.json)
+changed only that rendering. It reproduced both original outputs, then correctly
+selected search for current weather and answer for supplied evidence using the
+publisher format. This establishes an integration defect. It does not establish
+broad tool competence: the latter answer's extra refund-review claim was true
+in the source but omitted from its displayed quotation, so complete citation
+coverage still failed. The original failures remain in the evidence record.
 Individual cases took approximately 77–162 seconds in this CPU reference run;
 these are not Android performance measurements.
 
@@ -65,8 +69,26 @@ The unchanged SmolLM3 checkpoint is pinned in `config/smollm3-reference.json`.
 Its seven development probes include supported source questions, missing evidence,
 source injection and two inert tool proposals. The program does not execute tools
 or approve a model. The separate 36-case pilot is excluded from training. Broader
-original-checkpoint testing and a direct BF16 native-runtime comparison are next;
-the frozen development prompts are preserved rather than tuned against failures.
+original-checkpoint testing is running on all 36 held-out fictional cases. The
+frozen development prompts are preserved rather than tuned against failures.
+
+The [native BF16 comparison](../evaluation/smollm3-native-bf16-review-2026-10-26.json)
+completed all seven development probes. It verified every one of the 326 tensors
+against the original safetensors, allowing only Q/K layout permutation and
+lossless promotion of 73 normalization tensors to F32; 253 matrices remain BF16.
+All seven publisher/native token sequences matched. The exact GGUF is
+6,158,339,904 bytes, SHA-256
+`8bb048dbbc726c8e10bdf41575f5209b9b68a27b0ec15390b5031846047cec9b`.
+Five source-QA answers and the source-based tool answer passed agent semantic
+review; the known wrapped-schema routing failure reproduced. Five of seven
+completed outputs matched the original checkpoint text exactly. The other two
+were shorter supported answers, not regressions in these cases.
+
+Native cases took 18–34 seconds on two threads of a hosted Intel Xeon 6973P-C.
+The separate tool-format run used an AMD EPYC 9V74. These are different machines
+from the initial reference and are not controlled speed comparisons or S26
+measurements. No specialized training, live tool execution or Android acceptance
+is established by these diagnostics.
 
 A promising candidate must retain its useful behavior through the selected native
 runtime and pass broader answer-level evaluation. Its exact model bytes, prompt

@@ -17,6 +17,18 @@ public-domain text and evaluations for using tools and looking things up instead
 of confidently guessing. That training has not happened yet, and the current app
 does not browse the web.
 
+The larger model has cleared its first source-answer checks, and we've verified
+that its native conversion preserves every tensor value. We also found and
+fixed a tool-format mismatch in the test harness. That made it choose search
+when it should, but one answer still needed better citation coverage. The
+36-case evaluation is running now. A promising test is a reason to keep going,
+not a reason to skip the next test.
+
+Our first public-domain intake is also complete: six documents downloaded, with
+30 carefully reviewed passages retained from five. It's a small starting point,
+with separate training and evaluation text. More data only helps if it's good
+data, and none of it has been used for training yet.
+
 Acadia, Katahdin and Atlantic are being built as distinct workflows on a shared
 platform. We aren't presenting three newly trained models as a finished product.
 When the first usable alpha is ready, this repo will have the APK, checksums,
