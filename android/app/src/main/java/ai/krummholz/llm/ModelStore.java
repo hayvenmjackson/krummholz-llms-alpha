@@ -2,6 +2,12 @@ package ai.krummholz.llm;
 
 import android.content.Context;
 import android.net.Uri;
+import android.os.CancellationSignal;
+import android.os.ParcelFileDescriptor;
+import android.system.ErrnoException;
+import android.system.Os;
+import android.system.OsConstants;
+import android.system.StructStat;
 import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -11,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 /** Only the model is retained, in app-private storage excluded from backups. */
@@ -60,23 +67,49 @@ public final class ModelStore {
         return model;
     }
     public File importModel(Uri uri, BooleanSupplier cancelled, ModelVerifier.Progress progress) throws IOException {
+        return importModel(uri, cancelled, progress, new CancellationSignal());
+    }
+    public File importModel(Uri uri, BooleanSupplier cancelled, ModelVerifier.Progress progress,
+                            CancellationSignal signal) throws IOException {
         requireApproved();
+        if (cancelled.getAsBoolean() || signal.isCanceled()) throw new CancellationException();
         if (directory.getUsableSpace() < spec.bytes + 32L * 1024 * 1024)
             throw new IOException("Free some storage before importing the model. The previous model is unchanged.");
-        File stage = File.createTempFile("import-", ".partial", directory);
+        AtomicReference<ParcelFileDescriptor> active = new AtomicReference<>();
+        signal.setOnCancelListener(() -> closeDescriptor(active.getAndSet(null)));
+        File stage = null;
         try {
-            try (InputStream input = context.getContentResolver().openInputStream(uri)) {
-                if (input == null) throw new IOException("That file could not be opened. Try a locally downloaded copy.");
+            ParcelFileDescriptor descriptor = context.getContentResolver().openFileDescriptor(uri, "r", signal);
+            if (descriptor == null) throw new IOException("That file could not be opened. Try a locally downloaded copy.");
+            active.set(descriptor);
+            if (cancelled.getAsBoolean() || signal.isCanceled()) throw new CancellationException();
+            try {
+                StructStat stat = Os.fstat(descriptor.getFileDescriptor());
+                if (!OsConstants.S_ISREG(stat.st_mode))
+                    throw new IOException("Import a fully downloaded local file. Cloud streams and pipes are not supported.");
+                if (stat.st_size != spec.bytes)
+                    throw new IOException("This is not the approved model file (size mismatch). Download the complete file first.");
+            } catch (ErrnoException error) {
+                throw new IOException("The downloaded file could not be read. Choose a local copy from Downloads.", error);
+            }
+            stage = File.createTempFile("import-", ".partial", directory);
+            try (InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(descriptor)) {
                 ModelVerifier.copyVerified(input, stage, spec.bytes, spec.sha256, cancelled, progress);
             }
-            if (cancelled.getAsBoolean()) throw new CancellationException();
+            if (cancelled.getAsBoolean() || signal.isCanceled()) throw new CancellationException();
             // Same-directory atomic replacement: a failed import never removes the valid model.
             Files.move(stage.toPath(), model.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             return model;
         } finally {
+            signal.setOnCancelListener(null);
+            closeDescriptor(active.getAndSet(null));
             // This is the uniquely named staging file created by this operation, never a user file.
-            Files.deleteIfExists(stage.toPath());
+            if (stage != null) Files.deleteIfExists(stage.toPath());
         }
+    }
+    private static void closeDescriptor(ParcelFileDescriptor descriptor) {
+        if (descriptor == null) return;
+        try { descriptor.close(); } catch (IOException ignored) { /* Already closed or cancelled. */ }
     }
     private void requireApproved() throws IOException {
         if (!spec.approved) throw new IOException("Model provisioning is not complete in this development build.");

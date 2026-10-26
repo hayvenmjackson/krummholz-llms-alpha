@@ -1,0 +1,31 @@
+Krummholz LLMs [ALPHA]
+
+This app includes the following third-party components. Their notices and
+license texts apply to those components; they do not change the licensing of
+unrelated code or content.
+
+llama.cpp (CPU inference engine)
+Revision 620d2225cc436ab0b001e3200e590e3b286ef9ab (b11669)
+https://github.com/ggml-org/llama.cpp
+MIT License. Copyright notices and full license: llama.cpp-MIT.txt.
+
+LLVM libc++ (C++ runtime supplied by Android NDK r28.2)
+https://libcxx.llvm.org/
+Apache License 2.0 with LLVM Exceptions. Full text: libcxx-LICENSE.txt.
+
+Pleias RAG 350M (separate model download; not bundled in the APK)
+Publisher: Pleias. Model weights are published under Apache License 2.0.
+https://huggingface.co/PleIAs/Pleias-RAG-350M
+Publisher model revision: db001b29a33532583d14979c3c38ef04b6d59352
+Publisher GGUF revision: e71be595ff79fe6240a5be93661594c81fe8140e
+Krummholz's alpha uses a quantized copy for local inference. Quantization is
+numerical compression, not Krummholz fine-tuning or training. The accompanying
+model manifest records the exact transformation, source and artifact hashes.
+Full license: Apache-2.0.txt.
+
+Gradle wrapper (source/build tooling, not an application runtime component)
+https://gradle.org/
+Apache License 2.0. Full license: Apache-2.0.txt.
+
+Acadia, Katahdin and Atlantic are application workflows using one upstream
+baseline in this alpha. They are not three separately trained models.

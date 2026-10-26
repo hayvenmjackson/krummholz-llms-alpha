@@ -40,18 +40,23 @@ using Sampler = std::unique_ptr<llama_sampler, decltype(&llama_sampler_free)>;
 
 struct Engine {
     std::mutex operation;
-    std::atomic<bool> cancelled{false};
+    std::atomic<jlong> activeOperation{0};
+    std::atomic<jlong> cancelledThrough{0};
     std::atomic<bool> closed{false};
     std::atomic<int64_t> deadline{0};
     Model model{nullptr, llama_model_free};
     int contextTokens = 2048;
     int threads = 2;
 
+    bool isCancelled() const {
+        const jlong active = activeOperation.load();
+        return active != 0 && cancelledThrough.load() >= active;
+    }
     bool shouldStop() const {
-        return cancelled.load() || closed.load() || nowMillis() >= deadline.load();
+        return isCancelled() || closed.load() || nowMillis() >= deadline.load();
     }
     void check() const {
-        if (closed.load() || cancelled.load()) throw Cancelled();
+        if (closed.load() || isCancelled()) throw Cancelled();
         if (nowMillis() >= deadline.load())
             throw std::runtime_error("Native operation exceeded its three-minute limit.");
     }
@@ -73,13 +78,16 @@ std::shared_ptr<Engine> findEngine(jlong handle) {
 
 class Operation {
 public:
-    explicit Operation(Engine & engine) : engine_(engine), lock_(engine.operation, std::try_to_lock) {
+    Operation(Engine & engine, jlong ticket) : engine_(engine), lock_(engine.operation, std::try_to_lock) {
         if (!lock_.owns_lock()) throw std::runtime_error("The native engine is already busy.");
-        // A cancellation issued just before the worker starts also cancels that work.
-        if (engine_.cancelled.exchange(false) || engine_.closed.load()) throw Cancelled();
+        if (ticket <= 0) throw std::invalid_argument("Invalid native operation ticket.");
+        // Java reserves this ticket before JNI entry. A cancel during that handoff
+        // is retained for this call, while a delayed old cancel cannot poison a retry.
+        if (engine_.cancelledThrough.load() >= ticket || engine_.closed.load()) throw Cancelled();
+        engine_.activeOperation.store(ticket);
         engine_.deadline.store(nowMillis() + kOperationMillis);
     }
-    ~Operation() { engine_.cancelled.store(false); }
+    ~Operation() { engine_.activeOperation.store(0); }
 private:
     Engine & engine_;
     std::unique_lock<std::mutex> lock_;
@@ -185,14 +193,14 @@ Java_ai_krummholz_llm_NativeEngine_nativeCreate(JNIEnv * env, jclass) {
 
 extern "C" JNIEXPORT void JNICALL
 Java_ai_krummholz_llm_NativeEngine_nativeLoadModel(
-        JNIEnv * env, jclass, jlong handle, jbyteArray pathBytes, jint contextTokens, jint threads) {
+        JNIEnv * env, jclass, jlong handle, jlong ticket, jbyteArray pathBytes, jint contextTokens, jint threads) {
     try {
         if (contextTokens < 512 || contextTokens > 4096 || threads < 1 || threads > 4)
             throw std::invalid_argument("Context must be 512-4096 tokens and threads 1-4.");
         const std::string path = readBytes(env, pathBytes, 4096);
         if (path.front() != '/') throw std::invalid_argument("A private absolute model path is required.");
         auto engine = findEngine(handle);
-        Operation operation(*engine);
+        Operation operation(*engine, ticket);
         // Import/hash verification belongs to ModelStore. Open the verified local
         // file without following a symlink, then keep the same descriptor for load.
         const int descriptor = open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
@@ -232,13 +240,13 @@ Java_ai_krummholz_llm_NativeEngine_nativeLoadModel(
 
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_ai_krummholz_llm_NativeEngine_nativeGenerate(
-        JNIEnv * env, jclass, jlong handle, jbyteArray promptBytes, jint maxTokens, jobject listener) {
+        JNIEnv * env, jclass, jlong handle, jlong ticket, jbyteArray promptBytes, jint maxTokens, jobject listener) {
     try {
         if (maxTokens < 1 || maxTokens > 1024)
             throw std::invalid_argument("Output must be bounded to 1-1024 tokens.");
         const std::string prompt = readBytes(env, promptBytes, kMaxPromptBytes);
         auto engine = findEngine(handle);
-        Operation operation(*engine);
+        Operation operation(*engine, ticket);
         if (!engine->model) throw std::runtime_error("Load a verified model before generation.");
         const llama_vocab * vocab = llama_model_get_vocab(engine->model.get());
         const int probe = llama_tokenize(vocab, prompt.data(), static_cast<int>(prompt.size()),
@@ -314,10 +322,15 @@ Java_ai_krummholz_llm_NativeEngine_nativeGenerate(
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_ai_krummholz_llm_NativeEngine_nativeCancel(JNIEnv *, jclass, jlong handle) {
+Java_ai_krummholz_llm_NativeEngine_nativeCancel(JNIEnv *, jclass, jlong handle, jlong ticket) {
+    if (ticket <= 0) return;
     std::lock_guard<std::mutex> guard(registryMutex);
     auto found = registry.find(handle);
-    if (found != registry.end()) found->second->cancelled.store(true);
+    if (found != registry.end()) {
+        auto & cancelled = found->second->cancelledThrough;
+        jlong previous = cancelled.load();
+        while (previous < ticket && !cancelled.compare_exchange_weak(previous, ticket)) {}
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -331,6 +344,5 @@ Java_ai_krummholz_llm_NativeEngine_nativeRelease(JNIEnv *, jclass, jlong handle)
         registry.erase(found);
     }
     released->closed.store(true);
-    released->cancelled.store(true);
     // If a worker is active, its shared_ptr frees the model after it exits.
 }

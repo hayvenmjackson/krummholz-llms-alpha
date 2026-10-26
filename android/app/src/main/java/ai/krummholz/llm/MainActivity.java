@@ -1,6 +1,7 @@
 package ai.krummholz.llm;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.res.ColorStateList;
@@ -8,6 +9,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.CancellationSignal;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -22,8 +24,12 @@ import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.concurrent.CancellationException;
@@ -68,9 +74,11 @@ public final class MainActivity extends Activity {
     private LinearLayout citations;
     private Button downloadButton, importButton, reloadButton, askButton, cancelButton, clearButton, exampleButton;
     private ProgressBar progress;
+    private AlertDialog aboutDialog;
 
     private static final class Job {
         final AtomicBoolean cancelled = new AtomicBoolean();
+        final CancellationSignal importCancellation = new CancellationSignal();
         volatile boolean timedOut;
         ScheduledFuture<?> deadline;
     }
@@ -165,6 +173,8 @@ public final class MainActivity extends Activity {
         answerNote = text("Citation checks match quoted words. They do not establish that the answer is correct.", 12, MUTED, false);
         answerCard.addView(answerNote);
         margin(body, text("No action tools. No telemetry. No cloud fallback.\nPleias upstream baseline · local CPU inference", 12, MUTED, false), 6, 0);
+        Button aboutButton = button("About & licenses", false);
+        aboutButton.setOnClickListener(v -> showAbout()); margin(body, aboutButton, 12, 0);
 
         profiles.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -178,6 +188,49 @@ public final class MainActivity extends Activity {
         resetExample(); controls();
     }
 
+    private void showAbout() {
+        if (aboutDialog != null && aboutDialog.isShowing()) return;
+        StringBuilder content = new StringBuilder("Krummholz LLMs [ALPHA] · 0.1.0-alpha.1\n\n")
+            .append("Acadia, Katahdin and Atlantic are three workflows using one upstream Pleias RAG baseline. ")
+            .append("This alpha does not include Krummholz-trained model weights.\n\n")
+            .append("Inference runs on your phone. Source text, questions and answers are not saved to a history or backup. ")
+            .append("The app has no network permission, telemetry or action tools.\n\n");
+        try {
+            appendLicense(content, "NOTICE.txt");
+            String[] files = getAssets().list("licenses");
+            if (files != null) {
+                Arrays.sort(files);
+                for (String file : files) if (!"NOTICE.txt".equals(file)) appendLicense(content, file);
+            }
+        } catch (IOException error) {
+            content.append("Some bundled notices could not be read in this build. See the official release for the complete license files.\n");
+        }
+        ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
+        scroll.setBackgroundColor(FOREST); scroll.setSaveEnabled(false);
+        TextView notices = text(content.toString(), 14, CREAM, false);
+        notices.setTextIsSelectable(true); notices.setPadding(dp(22), dp(18), dp(22), dp(22));
+        scroll.addView(notices);
+        aboutDialog = new AlertDialog.Builder(this).setTitle("About & licenses").setView(scroll)
+            .setPositiveButton("Done", (dialog, which) -> dialog.dismiss()).create();
+        aboutDialog.setOnDismissListener(dialog -> aboutDialog = null);
+        aboutDialog.show();
+    }
+
+    private void appendLicense(StringBuilder content, String file) throws IOException {
+        // Bundled plain text only. Never render notices as HTML or fetch remote content.
+        try (InputStream input = getAssets().open("licenses/" + file);
+             ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096]; int count;
+            while ((count = input.read(buffer)) != -1) {
+                if (bytes.size() + count > 262_144 || content.length() + bytes.size() + count > 1_048_576)
+                    throw new IOException("Bundled notice exceeds the display limit.");
+                bytes.write(buffer, 0, count);
+            }
+            content.append("────────\n").append(file).append("\n\n")
+                .append(new String(bytes.toByteArray(), StandardCharsets.UTF_8)).append("\n\n");
+        }
+    }
+
     private void openModelDownload() {
         if (store == null || !store.spec.approved || store.spec.downloadUrl.isEmpty()) return;
         try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(store.spec.downloadUrl))); }
@@ -185,7 +238,8 @@ public final class MainActivity extends Activity {
     }
     private void chooseModel() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
-            .setType("*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            .setType("*/*").putExtra(Intent.EXTRA_LOCAL_ONLY, true)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         try { startActivityForResult(intent, IMPORT_MODEL); }
         catch (ActivityNotFoundException error) { operationStatus.setText("This device has no file picker available."); }
     }
@@ -206,7 +260,7 @@ public final class MainActivity extends Activity {
                         lastPercent[0] = percent;
                         ui(job, () -> { progress.setIndeterminate(false); progress.setProgress(percent); operationStatus.setText("Checking model bytes · " + percent + "%"); });
                     }
-                });
+                }, job.importCancellation);
                 load(job, file);
             } catch (Exception error) { failed(job, error, "The model could not be imported. Try a local copy of the approved file."); }
             finally { finish(job); }
@@ -245,9 +299,13 @@ public final class MainActivity extends Activity {
         Job job = begin("Reading the source on this phone…");
         worker.execute(() -> {
             try {
-                String raw = engine.generate(prompt, OUTPUT, count -> ui(job, () -> {
-                    if (!job.cancelled.get()) operationStatus.setText("Working locally · " + count + " tokens generated");
-                }));
+                if (job.cancelled.get()) throw new CancellationException();
+                String raw = engine.generate(prompt, OUTPUT, count -> {
+                    if (job.cancelled.get()) { engine.cancel(); return; }
+                    ui(job, () -> {
+                        if (!job.cancelled.get()) operationStatus.setText("Working locally · " + count + " tokens generated");
+                    });
+                });
                 if (job.cancelled.get()) throw new CancellationException();
                 Protocol.Answer answer = Protocol.parseAnswer(raw, request);
                 ui(job, () -> { if (!job.cancelled.get()) { showAnswer(answer); operationStatus.setText("Answer ready for your review."); } });
@@ -259,10 +317,11 @@ public final class MainActivity extends Activity {
     private Job begin(String status) {
         Job job = new Job(); current = job;
         operationStatus.setText(status); progress.setIndeterminate(true); progress.setVisibility(View.VISIBLE);
-        job.deadline = timer.schedule(() -> {
+        job.deadline = timer.schedule(() -> ui(job, () -> {
             job.timedOut = true; job.cancelled.set(true);
+            job.importCancellation.cancel();
             if (engine != null) engine.cancel();
-        }, 180, TimeUnit.SECONDS);
+        }), 180, TimeUnit.SECONDS);
         controls(); return job;
     }
     private void failed(Job job, Exception error, String fallback) {
@@ -282,6 +341,7 @@ public final class MainActivity extends Activity {
         Job job = current;
         if (job == null) return;
         job.cancelled.set(true);
+        job.importCancellation.cancel();
         if (engine != null) engine.cancel();
         if (!quiet) operationStatus.setText("Cancelling…");
     }
@@ -324,6 +384,7 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onDestroy() {
         destroyed = true; cancelCurrent(true);
+        if (aboutDialog != null) aboutDialog.dismiss();
         if (engine != null) engine.close();
         worker.shutdownNow(); timer.shutdownNow(); super.onDestroy();
     }

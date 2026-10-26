@@ -74,7 +74,10 @@ public final class NativeInferenceTest {
             assertEquals("Greedy generation changed after unrelated profiles; inspect request/KV isolation.",
                     snapshot(first), snapshot(repeated));
 
-            Protocol.Answer unicodeAnswer = complete(engine, unicode, "unicode", "Café 🌲");
+            // Java-only verification can be cancelled while JNI is idle. Such a cancellation
+            // belongs to that earlier job and must not poison this new, unrelated request.
+            engine.cancel();
+            Protocol.Answer unicodeAnswer = complete(engine, unicode, "unicode-after-idle-cancel", "Café 🌲");
             assertFalse("Native output contained replacement characters.",
                     evidence(unicodeAnswer).contains("\uFFFD"));
 
