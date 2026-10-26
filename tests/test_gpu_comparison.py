@@ -303,6 +303,49 @@ class GpuComparisonTests(unittest.TestCase):
             self.assertEqual(inventory["python-packages.json"]["sha256"], gpu.reference.sha(root / "out/python-packages.json"))
             self.assertEqual(sum(row["scheduled"] for row in gpu.load_json(root / "out/summary.json")["groups"]), 216)
 
+    def test_worker_process_does_not_inherit_cloud_or_hf_credentials(self):
+        credentials = {"RUNPOD_API_KEY": "fake-runpod-secret-test-only", "HF_TOKEN": "fake-hf-secret-test-only",
+                       "HUGGING_FACE_HUB_TOKEN": "fake-legacy-hf-secret-test-only"}
+        parent = {**os.environ, **credentials, "RUNPOD_POD_ID": "test-pod-identity", "HF_HUB_DISABLE_IMPLICIT_TOKEN": "0"}
+        original = parent.copy()
+        env = gpu.worker_environment(parent)
+        self.assertEqual(parent, original)
+        # Launch an actual lightweight child, without importing model dependencies.
+        code = "import json,os; print(json.dumps({'credentials_present': [k for k in ('RUNPOD_API_KEY','HF_TOKEN','HUGGING_FACE_HUB_TOKEN') if k in os.environ], 'pod_id':os.environ.get('RUNPOD_POD_ID'),'implicit_token_disabled':os.environ.get('HF_HUB_DISABLE_IMPLICIT_TOKEN')}))"
+        child = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True, timeout=10)
+        self.assertEqual(json.loads(child.stdout), {"credentials_present": [], "pod_id": "test-pod-identity",
+                                                  "implicit_token_disabled": "1"})
+        for secret in credentials.values():
+            self.assertNotIn(secret, child.stdout + child.stderr)
+        self.assertNotIn("hf_token", gpu.worker_environment({"hf_token": "lowercase-test"}))
+
+    def test_coordinator_strips_worker_credentials_and_never_records_them(self):
+        credentials = {"RUNPOD_API_KEY": "fake-runpod-evidence-secret", "HF_TOKEN": "fake-hf-evidence-secret",
+                       "HUGGING_FACE_HUB_TOKEN": "fake-legacy-evidence-secret"}
+        received = []
+        def fake_watch(command, env, log_path, progress_path, seconds):
+            received.append(env)
+            self.assertTrue(all(name not in env for name in credentials))
+            self.assertEqual(env["RUNPOD_POD_ID"], "test-fixture")
+            return {"exit_code": 1, "timed_out": False, "reason": "Fabricated no-inference test outcome"}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.object(gpu.platform, "system", return_value="Linux"), \
+                 patch.dict(os.environ, {**credentials, "RUNPOD_POD_ID": "test-fixture"}), \
+                 patch.object(gpu, "versions", return_value=self.config["versions"]), \
+                 patch.object(gpu.pilot, "hardware", return_value={"mem_available_kib": 30 * 1024 * 1024}), \
+                 patch.object(gpu, "effective_memory", return_value={"effective_available_kib": 30 * 1024 * 1024,
+                                                                   "cgroup_accounting_visible": True}), \
+                 patch.object(gpu, "gpu_preflight", return_value={"name": "test-only"}), \
+                 patch.object(gpu.shutil, "disk_usage", return_value=type("Disk", (), {"free": 100 * gpu.GIB})()), \
+                 patch.object(gpu, "watch_worker", side_effect=fake_watch), patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                self.assertEqual(gpu.execute(root / "models", root / "out", 1, 0, 2), 1)
+            self.assertEqual(len(received), 2)
+            evidence = stdout.getvalue().encode() + b"".join(p.read_bytes() for p in (root / "out").rglob("*") if p.is_file())
+            for name, secret in credentials.items():
+                self.assertNotIn(secret.encode(), evidence)
+                self.assertNotIn(name.encode(), evidence)
+
 
 if __name__ == "__main__":
     unittest.main()

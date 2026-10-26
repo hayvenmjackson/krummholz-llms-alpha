@@ -437,6 +437,15 @@ def watch_worker(command, env, log_path, progress_path, seconds):
             "elapsed_seconds": round(time.monotonic() - started, 3)}
 
 
+def worker_environment(parent_environment):
+    """Model dependencies need public source files, never cloud/HF credentials."""
+    credentials = {"RUNPOD_API_KEY", "HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"}
+    env = {name: value for name, value in parent_environment.items() if name.upper() not in credentials}
+    env.update(KRUMMHOLZ_GPU_WORKER="1", HF_HUB_DISABLE_TELEMETRY="1",
+               HF_HUB_DISABLE_IMPLICIT_TOKEN="1", TOKENIZERS_PARALLELISM="false")
+    return env
+
+
 def execute(work, output, hourly_usd, already_spent_usd, reserve_usd):
     started = time.monotonic()
     config, suite, _ = inputs()
@@ -488,8 +497,7 @@ def execute(work, output, hourly_usd, already_spent_usd, reserve_usd):
             if seconds < 30:
                 reasons[model["id"]] = {"reason": "Overall time/budget allocation exhausted before model setup"}
                 continue
-            env = {**os.environ, "KRUMMHOLZ_GPU_WORKER": "1", "HF_HUB_DISABLE_TELEMETRY": "1",
-                   "HF_HUB_DISABLE_IMPLICIT_TOKEN": "1", "TOKENIZERS_PARALLELISM": "false"}
+            env = worker_environment(os.environ)
             command = [sys.executable, str(Path(__file__).resolve()), "--worker", model["id"], "--work", str(work / model["id"]),
                        "--output", str(output), "--seconds", str(seconds)]
             reasons[model["id"]] = watch_worker(command, env, output / model["id"] / "worker.log",
