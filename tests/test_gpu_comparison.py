@@ -10,6 +10,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from tools import run_gpu_comparison as gpu
 
@@ -20,6 +21,29 @@ class FakeTokenizer:
     def decode(self, ids, **kwargs):
         self.calls.append((ids, kwargs))
         return self.text
+
+
+class FixtureGeneration:
+    def __init__(self, values):
+        self.values = copy.deepcopy(values)
+    def to_dict(self):
+        return copy.deepcopy(self.values)
+    def get_generation_mode(self):
+        return SimpleNamespace(value="sample" if self.values["do_sample"] else "greedy_search")
+
+
+class FixtureGenerator:
+    """Control-flow fixture only; real Transformers regression is separate."""
+    def __init__(self, changes=None):
+        self.changes, self.forward_called = changes or {}, False
+    def _prepare_generation_config(self, generation_config, use_model_defaults=None, **kwargs):
+        resolved = generation_config.to_dict()
+        resolved.update(self.changes)
+        return FixtureGeneration(resolved), kwargs
+    def generate(self, generation_config, use_model_defaults=None, **kwargs):
+        resolved, _ = self._prepare_generation_config(generation_config, use_model_defaults, **kwargs)
+        self.forward_called = True
+        return resolved.to_dict()
 
 
 class GpuComparisonTests(unittest.TestCase):
@@ -55,6 +79,53 @@ class GpuComparisonTests(unittest.TestCase):
             self.assertEqual(json.loads(messages[1]["content"]), case["request"])
             self.assertEqual(set(json.loads(messages[1]["content"])), {"query", "sources"})
             self.assertNotIn("rubric", messages[1]["content"])
+
+    def test_generation_observer_records_actual_resolution_and_restores_method(self):
+        for model_spec in self.config["models"]:
+            for variant in gpu.variants(self.config, model_spec):
+                model, records = FixtureGenerator(), []
+                intent = variant["generation"]
+                with patch.object(gpu.importlib.metadata, "version", return_value="4.57.1"):
+                    actual = gpu.generate_verified(model, FixtureGeneration(intent), intent, records.append)
+                self.assertEqual(actual, intent)
+                self.assertTrue(model.forward_called)
+                self.assertNotIn("_prepare_generation_config", vars(model))
+                self.assertEqual(len(records), 1)
+                self.assertTrue(records[0]["observed_inside_generate"])
+                self.assertFalse(records[0]["use_model_defaults"])
+                self.assertTrue(records[0]["matches_variant_intent"])
+                self.assertEqual(records[0]["resolved_generation_config"], intent)
+
+    def test_generation_observer_fails_before_forward_on_overridden_settings(self):
+        intent = gpu.variants(self.config, self.config["models"][0])[2]["generation"]
+        for changes in ({"do_sample": True}, {"temperature": 0.6}, {"top_p": 0.95},
+                        {"max_new_tokens": 385}, {"eos_token_id": [9]}, {"do_sample": 0}):
+            model, records = FixtureGenerator(changes), []
+            original = model._prepare_generation_config
+            # Preserve a pre-existing instance override too, including failure paths.
+            model._prepare_generation_config = original
+            with patch.object(gpu.importlib.metadata, "version", return_value="4.57.1"), \
+                 self.assertRaisesRegex(RuntimeError, "differ from variant intent"):
+                gpu.generate_verified(model, FixtureGeneration(intent), intent, records.append)
+            self.assertFalse(model.forward_called)
+            self.assertIs(model._prepare_generation_config, original)
+            self.assertFalse(records[0]["matches_variant_intent"])
+            self.assertTrue(records[0]["mismatches"])
+
+    def test_generation_observer_refuses_runtime_drift_and_failed_evidence_write(self):
+        model = FixtureGenerator()
+        intent = gpu.variants(self.config, self.config["models"][0])[2]["generation"]
+        with patch.object(gpu.importlib.metadata, "version", return_value="4.58.0"), \
+             self.assertRaisesRegex(RuntimeError, "pinned Transformers"):
+            gpu.generate_verified(model, FixtureGeneration(intent), intent, lambda _: None)
+        self.assertFalse(model.forward_called)
+        def broken_sink(_):
+            raise OSError("test evidence write failed")
+        with patch.object(gpu.importlib.metadata, "version", return_value="4.57.1"), \
+             self.assertRaisesRegex(OSError, "evidence write failed"):
+            gpu.generate_verified(model, FixtureGeneration(intent), intent, broken_sink)
+        self.assertFalse(model.forward_called)
+        self.assertNotIn("_prepare_generation_config", vars(model))
 
     def test_budget_is_finite_bounded_and_reserves_cost(self):
         limits = self.config["limits"]
@@ -239,6 +310,15 @@ class GpuComparisonTests(unittest.TestCase):
             self.assertTrue(execution["timed_out"])
             self.assertLess(execution["elapsed_seconds"], 5)
             self.assertIn("fictional diagnostic", (root / "worker.log").read_text())
+
+    def test_normal_worker_exit_does_not_invent_missing_results(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            execution = gpu.watch_worker([sys.executable, "-c", "pass"], os.environ.copy(),
+                                         root / "worker.log", root / "progress.json", 5)
+            self.assertEqual(execution["exit_code"], 0)
+            self.assertFalse(execution["timed_out"])
+            self.assertEqual(execution["reason"], "Worker exited")
 
     def test_source_metadata_rejects_unpinned_shards_and_remote_code(self):
         model = self.config["models"][0]

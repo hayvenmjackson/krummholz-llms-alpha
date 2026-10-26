@@ -259,6 +259,61 @@ def completion_result(generated, tokenizer, model, request, timed_out=False):
         return result_error("output_rejected", str(error))
 
 
+def generate_verified(model, generation, intent, record_resolution, **kwargs):
+    """Verify the config returned by the resolver *inside* this serial generate call.
+
+    Transformers 4.57.1 can replace explicit generic-default values (including
+    do_sample=False) with publisher defaults. Disabling that merge is necessary
+    even when a complete GenerationConfig was supplied. The temporary observer
+    verifies the actual resolver result before generate selects a decoding mode;
+    it neither changes the resolved config nor substitutes a separate preflight.
+    """
+    runtime_version = importlib.metadata.version("transformers")
+    if runtime_version != "4.57.1":
+        raise RuntimeError("Generation-config observer requires pinned Transformers 4.57.1")
+    original = model._prepare_generation_config
+    had_override = "_prepare_generation_config" in vars(model)
+    previous_override = vars(model).get("_prepare_generation_config")
+    resolutions = 0
+
+    def checked_resolution(generation_config, use_model_defaults=None, **model_kwargs):
+        nonlocal resolutions
+        resolutions += 1
+        if resolutions != 1 or use_model_defaults is not False:
+            raise RuntimeError("Generation must resolve exactly once with model defaults disabled")
+        resolved, remaining_kwargs = original(generation_config, use_model_defaults=False, **model_kwargs)
+        # Detach evidence before generate adds device tensors/length bookkeeping.
+        actual = json.loads(json.dumps(resolved.to_dict()))
+        requested = json.loads(json.dumps(intent))
+        mismatches = {key: {"requested": value, "resolved": actual.get(key)}
+                      for key, value in requested.items()
+                      if key not in actual or actual[key] != value or
+                      (type(value) is bool and type(actual[key]) is not bool)}
+        mode = resolved.get_generation_mode().value
+        expected_mode = "sample" if requested["do_sample"] else "greedy_search"
+        if mode != expected_mode:
+            mismatches["generation_mode"] = {"requested": expected_mode, "resolved": mode}
+        record_resolution({"transformers_version": runtime_version, "use_model_defaults": False,
+                           "observed_inside_generate": True, "resolved_generation_mode": mode,
+                           "requested_settings": requested, "resolved_generation_config": actual,
+                           "matches_variant_intent": not mismatches, "mismatches": mismatches})
+        if mismatches:
+            raise RuntimeError("Resolved generation settings differ from variant intent: " + ", ".join(sorted(mismatches)))
+        return resolved, remaining_kwargs
+
+    model._prepare_generation_config = checked_resolution
+    try:
+        output = model.generate(generation_config=generation, use_model_defaults=False, **kwargs)
+        if resolutions != 1:
+            raise RuntimeError("Generate did not use the verified configuration resolver")
+        return output
+    finally:
+        if had_override:
+            model._prepare_generation_config = previous_override
+        else:
+            delattr(model, "_prepare_generation_config")
+
+
 def model_worker(work, output, model_id, seconds):
     if os.environ.get("KRUMMHOLZ_GPU_WORKER") != "1" or platform.system() != "Linux" or not os.environ.get("RUNPOD_POD_ID"):
         raise RuntimeError("Model inference is restricted to the coordinator's remote Runpod worker")
@@ -379,16 +434,21 @@ def model_worker(work, output, model_id, seconds):
             reference.write_json(folder / "input.json", {"request": case["request"], "messages": messages, "input_token_ids": ids})
             generation = GenerationConfig(**variant["generation"])
             attempt.update(input_tokens=len(ids), prompt_sha256=hashlib.sha256(prompt.encode()).hexdigest(),
-                           actual_generation_config=generation.to_dict())
+                           requested_generation_config=generation.to_dict())
             reference.write_json(folder / "attempt.json", attempt)
+            def record_resolution(evidence):
+                attempt.update(generation_resolution=evidence,
+                               actual_generation_config=evidence["resolved_generation_config"])
+                reference.write_json(folder / "attempt.json", attempt)
             set_seed(variant["seed"])
             stopper = Deadline(until)
             encoded = {name: tensor.to("cuda:0") for name, tensor in encoded.items()}
             torch.cuda.synchronize()
             generation_started = time.monotonic()
             with torch.inference_mode():
-                sequence = model.generate(**encoded, generation_config=generation, streamer=Journal(folder),
-                                          stopping_criteria=StoppingCriteriaList([stopper]))
+                sequence = generate_verified(model, generation, variant["generation"], record_resolution,
+                                             **encoded, streamer=Journal(folder),
+                                             stopping_criteria=StoppingCriteriaList([stopper]))
             torch.cuda.synchronize()
             generated = sequence[0, len(ids):].tolist()
             (folder / "completion.txt").write_bytes(tokenizer.decode(generated, skip_special_tokens=False,
@@ -416,7 +476,7 @@ def model_worker(work, output, model_id, seconds):
 
 def watch_worker(command, env, log_path, progress_path, seconds):
     started = time.monotonic()
-    timed_out, reason = False, "Worker exited without producing all results"
+    timed_out, reason = False, "Worker exited"
     with log_path.open("xb") as log:
         process = subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT)
         try:
