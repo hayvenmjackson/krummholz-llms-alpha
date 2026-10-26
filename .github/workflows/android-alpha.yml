@@ -37,6 +37,9 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          log-accepted-android-sdk-licenses: false
       - name: Install pinned Android tools
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
       - name: Compile and check development source only
@@ -93,6 +96,9 @@ jobs:
           target.parent.mkdir(parents=True,exist_ok=True)
           shutil.copyfile(p,target)
           PY
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          log-accepted-android-sdk-licenses: false
       - name: Install pinned Android tools
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
       - name: Restore alpha signing key
@@ -161,6 +167,13 @@ jobs:
           - image: google_apis_ps16k
             page_size: 16384
     steps:
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          log-accepted-android-sdk-licenses: false
       - uses: actions/download-artifact@v4
         with:
           name: android-alpha-build
@@ -192,7 +205,7 @@ jobs:
           actual=$(adb shell getconf PAGE_SIZE | tr -d '\r')
           test "$actual" = "$EXPECTED_PAGE_SIZE"
           adb install apk/Krummholz-LLMs-0.1.0-alpha.1.apk
-          adb install apk/instrumentation.apk
+          adb install -t apk/instrumentation.apk
           adb logcat -c
           timeout 1200 adb shell am instrument -w -r ai.krummholz.llm.test/androidx.test.runner.AndroidJUnitRunner | tee instrumentation.txt
           grep -Eq '^OK \([0-9]+ tests?\)' instrumentation.txt
