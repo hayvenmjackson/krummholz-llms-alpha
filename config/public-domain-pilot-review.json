@@ -1,0 +1,494 @@
+{
+  "schema_version": 1,
+  "created_on": "2026-10-26",
+  "source_register": "config/public-domain-text-sources.json",
+  "sources": [
+    {
+      "source_id": "noaa-stock-reference-points-2025",
+      "document_sha256": "9597d0c07c9f423ed9bb7a0d2b6ea566197000d4b274fc6c0927d4f37aebcd56",
+      "status": "reviewed_selected_prose",
+      "reviewer": "Codex intake agent; not independent legal or domain-specialist approval",
+      "reviewed_on": "2026-10-26",
+      "review_method": "Scanned all extracted pages for credit/rights notices; manually read retained spans; visually spot-checked listed PDF pages. This is not full-document copyright clearance.",
+      "visual_spot_check_pdf_pages": [
+        33
+      ],
+      "excluded": "All text outside explicit reviewed spans; all figures, tables, quotations from other works, front/back matter, correspondence, author affiliations/contact details, references, linked data and supplements.",
+      "notes": "2025 methods text only; no current stock status, catch limits, statutory quotations or operational entitlement advice. Equation/subscript and broken cross-page passages excluded.",
+      "passages": [
+        {
+          "page": 27,
+          "start_line": 11,
+          "end_line": 15,
+          "section": "Non-stationarity in spawner-recruitment relationships",
+          "extracted_span_sha256": "604b63c2813cc3fedfcf3637257f8e3c455e07d2a32c532a49544e386dde09ea",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": [
+            " (Perretti et al., 2017; Vert-pre et al., 2013; Szuwalski et al., 2015)"
+          ]
+        },
+        {
+          "page": 27,
+          "start_line": 16,
+          "end_line": 23,
+          "section": "Assessing changes over time",
+          "extracted_span_sha256": "0a575c64a41efb054371ec9fff7594146237275448b45deb75073957c17fd464",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 27,
+          "start_line": 29,
+          "end_line": 32,
+          "section": "Estimation priors and transparency",
+          "extracted_span_sha256": "639d801c793ad2dc93f0a030a3390cc1bed863541cccfa4fbb3e49ef164207b8",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 27,
+          "start_line": 33,
+          "end_line": 36,
+          "section": "Sensitivity to strong priors",
+          "extracted_span_sha256": "b0cc93bf3118fe85b6fe1f16cbadb8752c629f7f31a49947913a5af134c87e5f",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 33,
+          "start_line": 11,
+          "end_line": 18,
+          "section": "Process versus observation error",
+          "extracted_span_sha256": "5cc0ebe3fa89b4333b23b657d41b068833617d099317fee425f8625b328387f6",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": [
+            " (Francis et al., 2003; Meyer and Miller, 1999; Winker et al., 2018)",
+            " (Nesslage and Wilberg, 2019)"
+          ]
+        },
+        {
+          "page": 33,
+          "start_line": 19,
+          "end_line": 30,
+          "section": "Time-series contrast and uncertainty",
+          "extracted_span_sha256": "c04e3f95d2ef967359687d215054adfc8cc5d14c6a8636e428f19937d52fb3a3",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": [
+            " (Thorson, 2020)"
+          ]
+        }
+      ],
+      "all_extracted_pages_credit_scan": true
+    },
+    {
+      "source_id": "noaa-water-level-uncertainty-2025",
+      "document_sha256": "5513c2f17e039bcbd46f6aae0e7a8b80c7a74e27a7c3d410d46e31d3d8558566",
+      "status": "reviewed_selected_prose",
+      "reviewer": "Codex intake agent; not independent legal or domain-specialist approval",
+      "reviewed_on": "2026-10-26",
+      "review_method": "Scanned all extracted pages for credit/rights notices; manually read retained spans; visually spot-checked listed PDF pages. This is not full-document copyright clearance.",
+      "visual_spot_check_pdf_pages": [
+        17
+      ],
+      "excluded": "All text outside explicit reviewed spans; all figures, tables, quotations from other works, front/back matter, correspondence, author affiliations/contact details, references, linked data and supplements.",
+      "notes": "Exclude IHO direct quotations on PDF page11, all illustrations, manufacturer specifications, site case studies and linked partner observations. Requirements remain edition-specific.",
+      "passages": [
+        {
+          "page": 7,
+          "start_line": 3,
+          "end_line": 13,
+          "section": "Scope and sources of measurement uncertainty",
+          "extracted_span_sha256": "0a93829ac1b296a396ce0ea5783cb380597b563cf231904a072a5958d91a8916",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 7,
+          "start_line": 14,
+          "end_line": 20,
+          "section": "Potential applications and limits",
+          "extracted_span_sha256": "1a319d0eba75a259ab16e712f39248b9cd05a54ae5e7f57c46fae7b6e3baf760",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 17,
+          "start_line": 2,
+          "end_line": 22,
+          "section": "Assumptions required for uncertainty estimates",
+          "extracted_span_sha256": "23b47206f5dba8a5fc8b01c06cce2648a22e36fae8e574c046c00551ddb6059f",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 17,
+          "start_line": 23,
+          "end_line": 27,
+          "section": "Metadata needed to assess measurement quality",
+          "extracted_span_sha256": "02d346ac86f4fa075ea868c7d742ea5528ca94cfcd7327d5813069e56488f816",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 17,
+          "start_line": 29,
+          "end_line": 37,
+          "section": "Geodetic control definition",
+          "extracted_span_sha256": "a217fa7ce278442818142a9b3c08f8466858acc5c29e49a588ada66250d51256",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 26,
+          "start_line": 13,
+          "end_line": 21,
+          "section": "Limits of first-order uncertainty estimates",
+          "extracted_span_sha256": "1aba2e293c5d28eaabb103f31fef532a00b5f438727a68488646db433e1d2771",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 26,
+          "start_line": 22,
+          "end_line": 29,
+          "section": "Long-term controls and short-term measurements",
+          "extracted_span_sha256": "5d3b80593c38a38a19f3335aa447307f1a3700dea54396a2fee145ea164da8f7",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": [
+            " (Mills and Dodd, 2014)"
+          ]
+        }
+      ],
+      "all_extracted_pages_credit_scan": true
+    },
+    {
+      "source_id": "noaa-nwlon-requirements-2024",
+      "document_sha256": "b779b63ea57e38a997bef464609215b5423735c02b30c8afe6c1b81ec2100a83",
+      "status": "reviewed_selected_prose",
+      "reviewer": "Codex intake agent; not independent legal or domain-specialist approval",
+      "reviewed_on": "2026-10-26",
+      "review_method": "Scanned all extracted pages for credit/rights notices; manually read retained spans; visually spot-checked listed PDF pages. This is not full-document copyright clearance.",
+      "visual_spot_check_pdf_pages": [
+        10
+      ],
+      "excluded": "All text outside explicit reviewed spans; all figures, tables, quotations from other works, front/back matter, correspondence, author affiliations/contact details, references, linked data and supplements.",
+      "notes": "Exclude maps, station data, all tables and footnotes. These paragraphs explain requirement types; they are not current technical compliance certification.",
+      "passages": [
+        {
+          "page": 8,
+          "start_line": 2,
+          "end_line": 7,
+          "section": "Different applications have different measurement requirements",
+          "extracted_span_sha256": "394011ea742f632f7682a41ae718b5919a594c63795617793691980fca2463c1",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 8,
+          "start_line": 8,
+          "end_line": 15,
+          "section": "Purpose and scope of the observing network",
+          "extracted_span_sha256": "316716a4f992ab40a266eef65ee9a53cae88f8ac95469b50a5044b7984f783ab",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 10,
+          "start_line": 1,
+          "end_line": 4,
+          "section": "Requirements design principles",
+          "extracted_span_sha256": "f232c460ffe382ea605fb77d9d5ecf791b50165119f33549a726858cf737da0f",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 10,
+          "start_line": 13,
+          "end_line": 17,
+          "section": "Business requirements",
+          "extracted_span_sha256": "7fa184bf2c4994d41274da915b774394b4c633c2f9a4e0d3985a2fc12c332612",
+          "reviewed_line_wrap_replacements": [
+            [
+              "quality- reviewed",
+              "quality-reviewed"
+            ]
+          ],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 10,
+          "start_line": 18,
+          "end_line": 23,
+          "section": "User observation requirements",
+          "extracted_span_sha256": "9b4623ec038b9fc225a6aafee5be7f69a1162ac81d6b2d87e47c40d1dba58a18",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 10,
+          "start_line": 24,
+          "end_line": 28,
+          "section": "Observing system requirements",
+          "extracted_span_sha256": "c07d1b758400e308b9f802a6d2cb87116974b46a4a3878216660b8055df68899",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 10,
+          "start_line": 29,
+          "end_line": 34,
+          "section": "Sensor requirements",
+          "extracted_span_sha256": "eda69af61e498b22948169f283ebd88f10537b9cb6e91a502d645eb40d09f6f1",
+          "reviewed_line_wrap_replacements": [
+            [
+              "Website6.",
+              "Website."
+            ]
+          ],
+          "reviewed_reference_removals": []
+        },
+        {
+          "page": 10,
+          "start_line": 35,
+          "end_line": 39,
+          "section": "Budget requirements",
+          "extracted_span_sha256": "37552b4cabb31a545d5e7ee29672c3d238c70b1402acc39f2ee3e97a8ac66429",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": []
+        }
+      ],
+      "all_extracted_pages_credit_scan": true
+    },
+    {
+      "source_id": "noaa-modeling-uncertainty-2015",
+      "document_sha256": "a6eeaa6c470083602c123f9a4c4c0b6bfda47c029449c54d548cae5bcc162e19",
+      "status": "reviewed_selected_prose",
+      "reviewer": "Codex intake agent; not independent legal or domain-specialist approval",
+      "reviewed_on": "2026-10-26",
+      "review_method": "Scanned all extracted pages for credit/rights notices; manually read retained spans; visually spot-checked listed PDF pages. This is not full-document copyright clearance.",
+      "visual_spot_check_pdf_pages": [
+        16
+      ],
+      "excluded": "All text outside explicit reviewed spans; all figures, tables, quotations from other works, front/back matter, correspondence, author affiliations/contact details, references, linked data and supplements.",
+      "notes": "Development-only material. Exclude credited third-party Table3 on PDF page22, other figures/tables, acknowledgements, agenda and participant/contact lists. pdfplumber resolves extraction errors found with pypdf plain-text mode.",
+      "passages": [
+        {
+          "page": 16,
+          "start_line": 12,
+          "end_line": 17,
+          "section": "Model skill and communication",
+          "extracted_span_sha256": "f030a9b1d1f8b5aa5d99d46386d712f639aacd34456fad22b6014189f5d6b845",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": [
+            " (e.g., Lynch et al. 2009, Stow et al. 2009, Zhang et al. 2010, Adams and Higdon 2012)"
+          ]
+        },
+        {
+          "page": 16,
+          "start_line": 18,
+          "end_line": 23,
+          "section": "Uncertainty in decision-support models",
+          "extracted_span_sha256": "2a8123df1cb5adcca730b4db4d273f0c422aca20d43485b5dc1cc018e27e54a2",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": [
+            " (Stow et al. 2009, Olsen et al. in review)"
+          ]
+        },
+        {
+          "page": 16,
+          "start_line": 24,
+          "end_line": 33,
+          "section": "Multiple measures of model skill",
+          "extracted_span_sha256": "8e74f0bce8eed2465da3498f3c80303d4b0e56f14b02137ed359ca94aceaa1f9",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": [
+            " (Allen and Somerfield 2009, Stow et al. 2009)",
+            " (Adams and Higdon 2012)",
+            " (Stow et al. 2009)"
+          ]
+        },
+        {
+          "page": 23,
+          "start_line": 19,
+          "end_line": 25,
+          "section": "No single method resolves all uncertainty",
+          "extracted_span_sha256": "49b242db9b8be07a5ec97aa483b51a307f44a0fb2a385f104d3fa2f8e232ed55",
+          "reviewed_line_wrap_replacements": [],
+          "reviewed_reference_removals": [
+            " (e.g., ICES 2010)"
+          ]
+        },
+        {
+          "page": 23,
+          "start_line": 26,
+          "end_line": 29,
+          "section": "Multi-model inference and management strategy evaluation",
+          "extracted_span_sha256": "4eeb827ac90b7b479593b71671ff4eca3fb79c9bdf4f63eef0c26038a2b249e1",
+          "reviewed_line_wrap_replacements": [
+            [
+              "Multi- model",
+              "Multi-model"
+            ]
+          ],
+          "reviewed_reference_removals": []
+        }
+      ],
+      "all_extracted_pages_credit_scan": true
+    },
+    {
+      "source_id": "plos-metabarcoding-signal-noise-2023",
+      "document_sha256": "0ea2159c386f275c852dae50a839544768f39c3bce03bf62158eb760b114b3be",
+      "status": "reviewed_selected_prose",
+      "reviewer": "Codex intake agent; not independent legal or domain-specialist approval",
+      "reviewed_on": "2026-10-26",
+      "review_method": "Scanned all extracted pages for credit/rights notices; manually read retained spans; visually spot-checked listed PDF pages. This is not full-document copyright clearance.",
+      "visual_spot_check_pdf_pages": [
+        13
+      ],
+      "excluded": "All text outside explicit reviewed spans; all figures, tables, quotations from other works, front/back matter, correspondence, author affiliations/contact details, references, linked data and supplements.",
+      "notes": "Test-only ecological methods prose. PLOS publisher PDF hash equals NOAA repository hash. Exclude authors/contact/ORCID blocks, all figures/tables, genetic records, external data/code, supplements and references. Only visually confirmed line-wrap repairs; no changed numeric results.",
+      "passages": [
+        {
+          "page": 13,
+          "start_line": 3,
+          "end_line": 12,
+          "section": "Amplification efficiency and non-detection",
+          "extracted_span_sha256": "7358743abce8c0b966aafa9be068aa0b1fea8c86ef7653bd0fde1383ad07fa14",
+          "reviewed_line_wrap_replacements": [
+            [
+              "spe- cies",
+              "species"
+            ],
+            [
+              "probabil- ity",
+              "probability"
+            ]
+          ],
+          "reviewed_reference_removals": [
+            " (Fig 4)"
+          ]
+        },
+        {
+          "page": 13,
+          "start_line": 13,
+          "end_line": 22,
+          "section": "Amplification efficiency changes observed read counts",
+          "extracted_span_sha256": "14d2b75751ccf6b4d4c3439fc0c343b05d037902962201fe3b0843f9c0c83e45",
+          "reviewed_line_wrap_replacements": [
+            [
+              "predic- tions",
+              "predictions"
+            ],
+            [
+              "effi- ciencies",
+              "efficiencies"
+            ],
+            [
+              "amplifi- cation",
+              "amplification"
+            ]
+          ],
+          "reviewed_reference_removals": [
+            " [33–35]"
+          ]
+        },
+        {
+          "page": 13,
+          "start_line": 37,
+          "end_line": 43,
+          "section": "Independent measurements for interpreting signal and noise",
+          "extracted_span_sha256": "9de5776d38269d6c58de520331b6033f5d106ffdcffb4bf339a16af2f1fdb8f5",
+          "reviewed_line_wrap_replacements": [
+            [
+              "metabar- coding",
+              "metabarcoding"
+            ],
+            [
+              "generat- ing",
+              "generating"
+            ]
+          ],
+          "reviewed_reference_removals": [
+            " [24]",
+            " [34, 35]",
+            " [33]",
+            " [36]"
+          ]
+        },
+        {
+          "page": 15,
+          "start_line": 9,
+          "end_line": 23,
+          "section": "Additional measurements and future reanalysis",
+          "extracted_span_sha256": "c3973ef03003948d6a2712a452161549f5b7a3b65a4293cfdd038d86b1dc66e3",
+          "reviewed_line_wrap_replacements": [
+            [
+              "vouch- ered",
+              "vouchered"
+            ],
+            [
+              "espe- cially",
+              "especially"
+            ],
+            [
+              "metabarcod- ing",
+              "metabarcoding"
+            ],
+            [
+              "devel- opment",
+              "development"
+            ],
+            [
+              "charac- terization",
+              "characterization"
+            ]
+          ],
+          "reviewed_reference_removals": []
+        }
+      ],
+      "all_extracted_pages_credit_scan": true
+    },
+    {
+      "source_id": "noaa-doppler-principles-1983",
+      "document_sha256": "8026a0bb5b6cf4c4fb763502c86416477cd8412621f7155df79d5d5dd56d799c",
+      "status": "hold",
+      "reviewer": "Codex intake agent",
+      "reviewed_on": "2026-10-26",
+      "review_method": "All extracted pages scanned; PDF pages4 and7 visually checked.",
+      "visual_spot_check_pdf_pages": [
+        4,
+        7
+      ],
+      "reason": "Scanned document has unreliable OCR/word breaks and obsolete operational context; PDF page7 also credits a figure after Battan. No text retained. Recover only through a separately reviewed transcription of stable physics passages.",
+      "passages": [],
+      "all_extracted_pages_credit_scan": true
+    }
+  ],
+  "selected_text_secondary_review": {
+    "reviewer": "Codex coordinating agent (root)",
+    "reviewed_on": "2026-10-26",
+    "scope": "Separate semantic and privacy reading of all 30 retained prose selections; not an independent rights audit, legal clearance or full-PDF review.",
+    "findings": "No personal contacts or individual identifiers found in the selected text; relevant methods and limitations retained.",
+    "limitations": "Some selections depend on abbreviations, earlier context or Section 5 pointers. Preserve source metadata; do not generate questions requiring absent definitions or context.",
+    "reviewed_clean_files": {
+      "train": {
+        "path": "clean/train.jsonl",
+        "sha256": "5d34fe6a4238611614208af06f6c24d928e7d6b9009ed5e6c69bac7d30a38ee6",
+        "records": 21,
+        "words": 1869
+      },
+      "dev": {
+        "path": "clean/dev.jsonl",
+        "sha256": "a3e950ffa453675ed68f3f9403f932acefd687109070362ee93524ab935ece7e",
+        "records": 5,
+        "words": 412
+      },
+      "test": {
+        "path": "clean/test.jsonl",
+        "sha256": "deb89f3f0d9781e26d564ddd9af5b3cb3c972d689b0385fe26c5bd2ceabca4e0",
+        "records": 4,
+        "words": 500
+      }
+    }
+  }
+}

@@ -8,3 +8,4 @@ artifacts/
 *.aab
 *.keystore
 *.jks
+data/public-domain-pilot/

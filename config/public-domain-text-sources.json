@@ -1,0 +1,551 @@
+{
+  "schema_version": 1,
+  "title": "Krummholz bounded public-domain scientific text intake",
+  "created_on": "2026-10-26",
+  "last_verified_on": "2026-10-26",
+  "status": "bounded_acquisition_and_selected_prose_review_completed",
+  "corpus_downloaded": true,
+  "training_started": false,
+  "intended_profiles": [
+    "Katahdin",
+    "Atlantic",
+    "shared evidence-seeking behavior"
+  ],
+  "policy": {
+    "eligibility": "Explicit item-level CC0 or verified U.S. government public-domain text with deployment-jurisdiction review; public access alone is insufficient.",
+    "cc_by_is_public_domain": false,
+    "cc_by_disposition": "Excluded from this public-domain-only intake; requires a separate approved licensed-data register if policy changes.",
+    "external_actions_authorized": false,
+    "all_sources_default_denied_until_review": true,
+    "third_party_rights": "A whole-document metadata label does not clear separately credited components or linked datasets.",
+    "personal_data": "No private email/client data. Strip personal identifiers and contact blocks; retain necessary bibliographic attribution separately.",
+    "legal_scope": "This register records evidence and operational gates, not a guarantee of title or legal clearance."
+  },
+  "pilot_limits": {
+    "max_documents": 8,
+    "max_clean_words": 150000,
+    "max_initial_reviewed_examples": 40,
+    "max_later_trajectory_records": 300,
+    "actual_word_count": 2781,
+    "actual_record_count": 30
+  },
+  "split_policy": {
+    "status": "source_families_frozen_before_extraction_and_preserved",
+    "unit": "Source family, including revisions, translations, shared passages, questions, paraphrases and synthetic derivatives.",
+    "proposed_counts": {
+      "train_documents": 5,
+      "dev_documents": 1,
+      "test_documents": 2,
+      "source_groups": 7
+    },
+    "same_group_same_partition": true,
+    "holdout_use": "Dev/test text cannot enter training, synthetic generation for training, prompt tuning or training retrieval stores.",
+    "inherited_base_overlap": "Unknown. These splits measure this adaptation's held-out sources, not proven absence from base-model pretraining.",
+    "blocked_source": "A held source remains absent; do not silently reassign its partition or train on test replacements.",
+    "actual_retained_counts": {
+      "train_documents": 3,
+      "dev_documents": 1,
+      "test_documents": 1,
+      "source_groups": 4
+    }
+  },
+  "required_before_ingestion": [
+    "Retrieve exact document and rights evidence; record final URL, retrieval time, SHA256, byte count and edition.",
+    "Inspect full text and credits; approve explicit page/section ranges, jurisdiction scope and exclusions.",
+    "Extract text with page/section offsets; validate OCR, equations, units and tables against source.",
+    "Remove boilerplate, third-party text and personal identifiers; manually inspect flagged and sampled retained text.",
+    "Deduplicate exact and near-matching passages across all source groups before freezing partitions.",
+    "Record reviewer, filtering version and approved uses; keep approved flags false until all gates pass."
+  ],
+  "source_policy_evidence": [
+    "https://repository.library.noaa.gov/Content%20and%20Copyright",
+    "https://creativecommons.org/publicdomain/zero/1.0/"
+  ],
+  "sources": [
+    {
+      "id": "usgs-roadxstr-2026",
+      "title": "RoadxStr user's guide—For collection of road-stream crossing assessment field observations",
+      "publisher": "U.S. Geological Survey; prepared in cooperation with Bureau of Land Management and U.S. Forest Service",
+      "publication_date": "2026",
+      "domains": [
+        "forestry",
+        "fisheries",
+        "field_methods"
+      ],
+      "canonical_url": "https://pubs.usgs.gov/publication/tm18B1",
+      "document_url": "https://pubs.usgs.gov/tm/18/b1/tm18B1.pdf",
+      "source_group_id": "road_stream_crossing_methods",
+      "proposed_partition": "train",
+      "intake_status": "hold_direct_rights_and_full_text_verification",
+      "approved_for_training": false,
+      "approved_for_redistribution": false,
+      "proposed_use_after_clearance": [
+        "bounded_scientific_text",
+        "source_grounded_tool_trajectories"
+      ],
+      "scope": "General crossing-assessment methods and field definitions. Exclude actual landowner or sensitive site records.",
+      "excluded_content": [
+        "Third-party material, quotations and credited reproductions without independently verified public-domain or CC0 rights.",
+        "Images, logos, author/contact pages, acknowledgements, bibliography text and linked datasets are outside this text intake."
+      ],
+      "privacy_review": {
+        "status": "not_completed",
+        "notes": "Inspect field examples for names, contact details, property identifiers and precise sensitive locations."
+      },
+      "rights": {
+        "classification": "US-PD-government-text-candidate",
+        "evidence_url": "https://pubs.usgs.gov/tm/18/b1/tm18B1.pdf",
+        "license_url": null,
+        "evidence_summary": "The indexed official PDF frontmatter describes most of the product as public domain while reserving separately credited copyrighted material.",
+        "jurisdiction": "U.S. government-work basis in the United States; no worldwide dedication established.",
+        "checked_on": "2026-10-26",
+        "evidence_status": "official_pdf_indexed_notice_read_direct_fetch_403",
+        "scope": "No section cleared. Direct PDF/credit inspection and non-U.S. reuse review remain required."
+      },
+      "downloaded_for_corpus": false,
+      "document_sha256": null,
+      "clean_text_sha256": null,
+      "approved_sections": [],
+      "doi": "10.3133/tm18B1"
+    },
+    {
+      "id": "usgs-landcover-2015",
+      "title": "Land-cover change in the Gulf Coastal Plains and Ozarks Landscape Conservation Cooperative, 1973 to 2000",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "2015",
+      "domains": [
+        "forestry",
+        "land_cover",
+        "research_methods"
+      ],
+      "canonical_url": "https://pubs.usgs.gov/publication/ofr20151018",
+      "document_url": "https://pubs.usgs.gov/of/2015/1018/pdf/ofr2015-1018.pdf",
+      "source_group_id": "usgs_land_cover_trends",
+      "proposed_partition": "test",
+      "intake_status": "hold_direct_rights_and_full_text_verification",
+      "approved_for_training": false,
+      "approved_for_redistribution": false,
+      "proposed_use_after_clearance": [
+        "bounded_scientific_text",
+        "source_grounded_tool_trajectories"
+      ],
+      "scope": "Historical land-cover analysis and uncertainty methods. Preserve the 1973–2000 study period; do not present it as current forest status.",
+      "excluded_content": [
+        "Third-party material, quotations and credited reproductions without independently verified public-domain or CC0 rights.",
+        "Images, logos, author/contact pages, acknowledgements, bibliography text and linked datasets are outside this text intake."
+      ],
+      "privacy_review": {
+        "status": "not_completed",
+        "notes": "Remove contact/frontmatter details; inspect geographic examples for private-property or sensitive-site identifiers."
+      },
+      "rights": {
+        "classification": "US-PD-government-text-candidate",
+        "evidence_url": "https://pubs.usgs.gov/of/2015/1018/pdf/ofr2015-1018.pdf",
+        "license_url": null,
+        "evidence_summary": "The indexed official PDF frontmatter gives a public-domain notice for most content and warns that credited third-party items require separate permission.",
+        "jurisdiction": "U.S. government-work basis in the United States; no worldwide dedication established.",
+        "checked_on": "2026-10-26",
+        "evidence_status": "official_pdf_indexed_notice_read_direct_fetch_403",
+        "scope": "No section cleared. Direct PDF/credit inspection and non-U.S. reuse review remain required."
+      },
+      "downloaded_for_corpus": false,
+      "document_sha256": null,
+      "clean_text_sha256": null,
+      "approved_sections": [],
+      "doi": "10.3133/ofr20151018"
+    },
+    {
+      "id": "noaa-stock-reference-points-2025",
+      "title": "Technical Guidance for Estimating Reference Points used for Stock Status Determination in Accordance with the National Standard 1 Guidelines",
+      "publisher": "NOAA National Marine Fisheries Service",
+      "publication_date": "2025",
+      "domains": [
+        "fisheries",
+        "quantitative_methods"
+      ],
+      "canonical_url": "https://repository.library.noaa.gov/view/noaa/72013",
+      "document_url": "https://repository.library.noaa.gov/view/noaa/72013/noaa_72013_DS1.pdf",
+      "source_group_id": "nmfs_stock_reference_guidance",
+      "proposed_partition": "train",
+      "intake_status": "selected_prose_retained",
+      "approved_for_training": false,
+      "approved_for_redistribution": false,
+      "proposed_use_after_clearance": [
+        "bounded_scientific_text",
+        "source_grounded_tool_trajectories"
+      ],
+      "scope": "Reference-point calculation and assessment concepts. Current stock status, catch limits and legal requirements require a fresh official lookup.",
+      "excluded_content": [
+        "Third-party material, quotations and credited reproductions without independently verified public-domain or CC0 rights.",
+        "Images, logos, author/contact pages, acknowledgements, bibliography text and linked datasets are outside this text intake."
+      ],
+      "privacy_review": {
+        "status": "selected_prose_reviewed_by_intake_and_coordinating_agents",
+        "notes": "Remove correspondence, contributor contact information and personal identifiers; inspect examples for vessel/operator detail. All retained selections read and pattern-checked; no identified personal contacts or individual identifiers retained. This is not a whole-document privacy clearance."
+      },
+      "rights": {
+        "classification": "CC0-1.0",
+        "evidence_url": "https://repository.library.noaa.gov/view/noaa/72013",
+        "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "evidence_summary": "The item's official repository record identifies CC0 and links the CC0 dedication.",
+        "jurisdiction": "Worldwide dedication to the extent permitted by law; other rights are not cleared by CC0.",
+        "checked_on": "2026-10-26",
+        "evidence_status": "primary_item_cc0_notice_saved_and_hash_recorded",
+        "scope": "Item-level CC0 evidence saved. Only reviewed narrative selections may become candidates after excluding credited third-party material; no full-PDF clearance."
+      },
+      "downloaded_for_corpus": true,
+      "document_sha256": "9597d0c07c9f423ed9bb7a0d2b6ea566197000d4b274fc6c0927d4f37aebcd56",
+      "clean_text_sha256": null,
+      "approved_sections": [],
+      "doi": "10.25923/4dvw-v426",
+      "acquired_document_url": "https://repository.library.noaa.gov/view/noaa/72013/noaa_72013_DS1.pdf",
+      "current_review_manifest": "data/public-domain-pilot/manifest.json",
+      "current_review_file": "config/public-domain-pilot-review.json",
+      "whole_document_approved_for_training": false,
+      "whole_document_approved_for_redistribution": false,
+      "retained_selected_prose": {
+        "records": 6,
+        "words": 565,
+        "partition": "train",
+        "training_authorized": false,
+        "published": false
+      },
+      "clean_text_hash_scope": "No whole-document clean file exists; per-passage text hashes and partition-file hashes are recorded in the current review manifest.",
+      "selected_prose_scope": "Only exact reviewed page/line spans are retained as candidates; no whole section or complete document is approved."
+    },
+    {
+      "id": "noaa-modeling-uncertainty-2015",
+      "title": "Report from the Joint OAR-NMFS Modeling Uncertainty Workshop",
+      "publisher": "NOAA National Marine Fisheries Service and Office of Oceanic and Atmospheric Research",
+      "publication_date": "2015-07",
+      "domains": [
+        "fisheries",
+        "weather",
+        "research_methods"
+      ],
+      "canonical_url": "https://repository.library.noaa.gov/view/noaa/12956",
+      "document_url": "https://repository.library.noaa.gov/view/noaa/12956/noaa_12956_DS1.pdf",
+      "source_group_id": "oar_nmfs_uncertainty_workshop",
+      "proposed_partition": "dev",
+      "intake_status": "selected_prose_retained",
+      "approved_for_training": false,
+      "approved_for_redistribution": false,
+      "proposed_use_after_clearance": [
+        "bounded_scientific_text",
+        "source_grounded_tool_trajectories"
+      ],
+      "scope": "Scientific uncertainty, model-skill review and communication methods.",
+      "excluded_content": [
+        "Third-party material, quotations and credited reproductions without independently verified public-domain or CC0 rights.",
+        "Images, logos, author/contact pages, acknowledgements, bibliography text and linked datasets are outside this text intake."
+      ],
+      "privacy_review": {
+        "status": "selected_prose_reviewed_by_intake_and_coordinating_agents",
+        "notes": "The repository includes author authority birth years. Exclude these, attendee/contact lists and personal correspondence; preserve only essential bibliographic attribution outside training text. All retained selections read and pattern-checked; no identified personal contacts or individual identifiers retained. This is not a whole-document privacy clearance."
+      },
+      "rights": {
+        "classification": "CC0-1.0",
+        "evidence_url": "https://repository.library.noaa.gov/view/noaa/12956",
+        "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "evidence_summary": "The item's official repository record identifies CC0 and links the CC0 dedication.",
+        "jurisdiction": "Worldwide dedication to the extent permitted by law; other rights are not cleared by CC0.",
+        "checked_on": "2026-10-26",
+        "evidence_status": "primary_item_cc0_notice_saved_and_hash_recorded",
+        "scope": "Item-level CC0 evidence saved. Only reviewed narrative selections may become candidates after excluding credited third-party material; no full-PDF clearance."
+      },
+      "downloaded_for_corpus": true,
+      "document_sha256": "a6eeaa6c470083602c123f9a4c4c0b6bfda47c029449c54d548cae5bcc162e19",
+      "clean_text_sha256": null,
+      "approved_sections": [],
+      "acquired_document_url": "https://repository.library.noaa.gov/view/noaa/12956/noaa_12956_DS1.pdf",
+      "current_review_manifest": "data/public-domain-pilot/manifest.json",
+      "current_review_file": "config/public-domain-pilot-review.json",
+      "whole_document_approved_for_training": false,
+      "whole_document_approved_for_redistribution": false,
+      "retained_selected_prose": {
+        "records": 5,
+        "words": 412,
+        "partition": "dev",
+        "training_authorized": false,
+        "published": false
+      },
+      "clean_text_hash_scope": "No whole-document clean file exists; per-passage text hashes and partition-file hashes are recorded in the current review manifest.",
+      "selected_prose_scope": "Only exact reviewed page/line spans are retained as candidates; no whole section or complete document is approved."
+    },
+    {
+      "id": "noaa-water-level-uncertainty-2025",
+      "title": "Estimating total vertical uncertainty of short term and partner water level observations",
+      "publisher": "NOAA Center for Operational Oceanographic Products & Services",
+      "publication_date": "2025",
+      "domains": [
+        "coastal_science",
+        "weather",
+        "measurement_uncertainty"
+      ],
+      "canonical_url": "https://repository.library.noaa.gov/view/noaa/70293",
+      "document_url": "https://repository.library.noaa.gov/view/noaa/70293/noaa_70293_DS1.pdf",
+      "source_group_id": "coops_water_level_methods",
+      "proposed_partition": "train",
+      "intake_status": "selected_prose_retained",
+      "approved_for_training": false,
+      "approved_for_redistribution": false,
+      "proposed_use_after_clearance": [
+        "bounded_scientific_text",
+        "source_grounded_tool_trajectories"
+      ],
+      "scope": "Instrument, survey and geodetic uncertainty explanations. Linked partner observation datasets need separate rights review.",
+      "excluded_content": [
+        "Third-party material, quotations and credited reproductions without independently verified public-domain or CC0 rights.",
+        "Images, logos, author/contact pages, acknowledgements, bibliography text and linked datasets are outside this text intake."
+      ],
+      "privacy_review": {
+        "status": "selected_prose_reviewed_by_intake_and_coordinating_agents",
+        "notes": "Remove partner contact details and inspect field-site examples; do not ingest linked partner records. All retained selections read and pattern-checked; no identified personal contacts or individual identifiers retained. This is not a whole-document privacy clearance."
+      },
+      "rights": {
+        "classification": "CC0-1.0",
+        "evidence_url": "https://repository.library.noaa.gov/view/noaa/70293",
+        "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "evidence_summary": "The item's official repository record identifies CC0 and links the CC0 dedication.",
+        "jurisdiction": "Worldwide dedication to the extent permitted by law; other rights are not cleared by CC0.",
+        "checked_on": "2026-10-26",
+        "evidence_status": "primary_item_cc0_notice_saved_and_hash_recorded",
+        "scope": "Item-level CC0 evidence saved. Only reviewed narrative selections may become candidates after excluding credited third-party material; no full-PDF clearance."
+      },
+      "downloaded_for_corpus": true,
+      "document_sha256": "5513c2f17e039bcbd46f6aae0e7a8b80c7a74e27a7c3d410d46e31d3d8558566",
+      "clean_text_sha256": null,
+      "approved_sections": [],
+      "doi": "10.25923/s9h7-vy98",
+      "acquired_document_url": "https://repository.library.noaa.gov/view/noaa/70293/noaa_70293_DS1.pdf",
+      "current_review_manifest": "data/public-domain-pilot/manifest.json",
+      "current_review_file": "config/public-domain-pilot-review.json",
+      "whole_document_approved_for_training": false,
+      "whole_document_approved_for_redistribution": false,
+      "retained_selected_prose": {
+        "records": 7,
+        "words": 829,
+        "partition": "train",
+        "training_authorized": false,
+        "published": false
+      },
+      "clean_text_hash_scope": "No whole-document clean file exists; per-passage text hashes and partition-file hashes are recorded in the current review manifest.",
+      "selected_prose_scope": "Only exact reviewed page/line spans are retained as candidates; no whole section or complete document is approved."
+    },
+    {
+      "id": "noaa-nwlon-requirements-2024",
+      "title": "National Water Level Observation Network (NWLON) requirements",
+      "publisher": "NOAA National Ocean Service; Center for Operational Oceanographic Products & Services",
+      "publication_date": "2024",
+      "domains": [
+        "coastal_science",
+        "weather",
+        "observing_systems"
+      ],
+      "canonical_url": "https://repository.library.noaa.gov/view/noaa/66446",
+      "document_url": "https://repository.library.noaa.gov/view/noaa/66446/noaa_66446_DS1.pdf",
+      "source_group_id": "coops_water_level_methods",
+      "proposed_partition": "train",
+      "intake_status": "selected_prose_retained",
+      "approved_for_training": false,
+      "approved_for_redistribution": false,
+      "proposed_use_after_clearance": [
+        "bounded_scientific_text",
+        "source_grounded_tool_trajectories"
+      ],
+      "scope": "Accuracy, continuity and documentation concepts. Retain edition date; retrieve the latest requirements before operational advice.",
+      "excluded_content": [
+        "Third-party material, quotations and credited reproductions without independently verified public-domain or CC0 rights.",
+        "Images, logos, author/contact pages, acknowledgements, bibliography text and linked datasets are outside this text intake."
+      ],
+      "privacy_review": {
+        "status": "selected_prose_reviewed_by_intake_and_coordinating_agents",
+        "notes": "Remove contact directories and personal identifiers; inspect station examples rather than assuming all location metadata is appropriate. All retained selections read and pattern-checked; no identified personal contacts or individual identifiers retained. This is not a whole-document privacy clearance."
+      },
+      "rights": {
+        "classification": "CC0-1.0",
+        "evidence_url": "https://repository.library.noaa.gov/view/noaa/66446",
+        "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "evidence_summary": "The item's official repository record identifies CC0 and links the CC0 dedication.",
+        "jurisdiction": "Worldwide dedication to the extent permitted by law; other rights are not cleared by CC0.",
+        "checked_on": "2026-10-26",
+        "evidence_status": "primary_item_cc0_notice_saved_and_hash_recorded",
+        "scope": "Item-level CC0 evidence saved. Only reviewed narrative selections may become candidates after excluding credited third-party material; no full-PDF clearance."
+      },
+      "downloaded_for_corpus": true,
+      "document_sha256": "b779b63ea57e38a997bef464609215b5423735c02b30c8afe6c1b81ec2100a83",
+      "clean_text_sha256": null,
+      "approved_sections": [],
+      "doi": "10.25923/h9h9-6p20",
+      "acquired_document_url": "https://repository.library.noaa.gov/view/noaa/66446/noaa_66446_DS1.pdf",
+      "current_review_manifest": "data/public-domain-pilot/manifest.json",
+      "current_review_file": "config/public-domain-pilot-review.json",
+      "whole_document_approved_for_training": false,
+      "whole_document_approved_for_redistribution": false,
+      "retained_selected_prose": {
+        "records": 8,
+        "words": 475,
+        "partition": "train",
+        "training_authorized": false,
+        "published": false
+      },
+      "clean_text_hash_scope": "No whole-document clean file exists; per-passage text hashes and partition-file hashes are recorded in the current review manifest.",
+      "selected_prose_scope": "Only exact reviewed page/line spans are retained as candidates; no whole section or complete document is approved."
+    },
+    {
+      "id": "noaa-doppler-principles-1983",
+      "title": "Doppler weather radar principles",
+      "publisher": "NOAA National Weather Service Training Center",
+      "publication_date": "1983",
+      "domains": [
+        "weather",
+        "physics",
+        "research_methods"
+      ],
+      "canonical_url": "https://repository.library.noaa.gov/view/noaa/49662",
+      "document_url": "https://repository.library.noaa.gov/view/noaa/49662/noaa_49662_DS1.pdf",
+      "source_group_id": "nws_radar_training_principles",
+      "proposed_partition": "train",
+      "intake_status": "hold_review",
+      "approved_for_training": false,
+      "approved_for_redistribution": false,
+      "proposed_use_after_clearance": [
+        "bounded_scientific_text",
+        "source_grounded_tool_trajectories"
+      ],
+      "scope": "Stable radar physics and measurement limitations only. Exclude obsolete equipment instructions, capabilities and operational recommendations.",
+      "excluded_content": [
+        "Third-party material, quotations and credited reproductions without independently verified public-domain or CC0 rights.",
+        "Images, logos, author/contact pages, acknowledgements, bibliography text and linked datasets are outside this text intake."
+      ],
+      "privacy_review": {
+        "status": "held_no_prose_retained",
+        "notes": "Remove instructor/contact/frontmatter details; examine worked examples for unnecessary individual identifiers."
+      },
+      "rights": {
+        "classification": "CC0-1.0",
+        "evidence_url": "https://repository.library.noaa.gov/view/noaa/49662",
+        "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "evidence_summary": "The item's official repository record identifies CC0 and links the CC0 dedication.",
+        "jurisdiction": "Worldwide dedication to the extent permitted by law; other rights are not cleared by CC0.",
+        "checked_on": "2026-10-26",
+        "evidence_status": "primary_item_cc0_notice_saved_and_hash_recorded",
+        "scope": "Item-level CC0 evidence saved. Only reviewed narrative selections may become candidates after excluding credited third-party material; no full-PDF clearance."
+      },
+      "downloaded_for_corpus": true,
+      "document_sha256": "8026a0bb5b6cf4c4fb763502c86416477cd8412621f7155df79d5d5dd56d799c",
+      "clean_text_sha256": null,
+      "approved_sections": [],
+      "acquired_document_url": "https://repository.library.noaa.gov/view/noaa/49662/noaa_49662_DS1.pdf",
+      "current_review_manifest": "data/public-domain-pilot/manifest.json",
+      "current_review_file": "config/public-domain-pilot-review.json",
+      "whole_document_approved_for_training": false,
+      "whole_document_approved_for_redistribution": false,
+      "retained_selected_prose": {
+        "records": 0,
+        "words": 0,
+        "partition": "train",
+        "training_authorized": false,
+        "published": false
+      },
+      "clean_text_hash_scope": "No whole-document clean file exists; per-passage text hashes and partition-file hashes are recorded in the current review manifest.",
+      "selected_prose_scope": "Only exact reviewed page/line spans are retained as candidates; no whole section or complete document is approved."
+    },
+    {
+      "id": "plos-metabarcoding-signal-noise-2023",
+      "title": "Signal and noise in metabarcoding data",
+      "publisher": "Public Library of Science (PLOS ONE); NOAA and academic coauthors",
+      "publication_date": "2023-05-11",
+      "domains": [
+        "fisheries",
+        "ecology",
+        "research_methods"
+      ],
+      "canonical_url": "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0285674",
+      "document_url": "https://repository.library.noaa.gov/view/noaa/53260/noaa_53260_DS1.pdf",
+      "source_group_id": "metabarcoding_signal_noise",
+      "proposed_partition": "test",
+      "intake_status": "selected_prose_retained",
+      "approved_for_training": false,
+      "approved_for_redistribution": false,
+      "proposed_use_after_clearance": [
+        "bounded_scientific_text",
+        "source_grounded_tool_trajectories"
+      ],
+      "scope": "Sampling bias, non-detection and quantitative uncertainty methods. Exclude underlying genetic records and linked data/code deposits.",
+      "excluded_content": [
+        "Third-party material, quotations and credited reproductions without independently verified public-domain or CC0 rights.",
+        "Images, logos, author/contact pages, acknowledgements, bibliography text and linked datasets are outside this text intake."
+      ],
+      "privacy_review": {
+        "status": "selected_prose_reviewed_by_intake_and_coordinating_agents",
+        "notes": "The publisher page exposes author email and ORCID identifiers. Exclude these, affiliations/contact blocks, comments, acknowledgements and review history. All retained selections read and pattern-checked; no identified personal contacts or individual identifiers retained. This is not a whole-document privacy clearance."
+      },
+      "rights": {
+        "classification": "CC0-1.0",
+        "evidence_url": "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0285674",
+        "corroborating_evidence_url": "https://repository.library.noaa.gov/view/noaa/53260",
+        "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "evidence_summary": "This particular publisher article explicitly uses a CC0 dedication; the NOAA item record independently agrees. No inference from PLOS's general licensing policy.",
+        "jurisdiction": "Worldwide dedication to the extent permitted by law; other rights are not cleared by CC0.",
+        "checked_on": "2026-10-26",
+        "evidence_status": "primary_item_cc0_notice_saved_and_hash_recorded",
+        "scope": "Item-level CC0 evidence saved. Only reviewed narrative selections may become candidates after excluding credited third-party material; no full-PDF clearance."
+      },
+      "downloaded_for_corpus": true,
+      "document_sha256": "0ea2159c386f275c852dae50a839544768f39c3bce03bf62158eb760b114b3be",
+      "clean_text_sha256": null,
+      "approved_sections": [],
+      "doi": "10.1371/journal.pone.0285674",
+      "acquired_document_url": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0285674&type=printable",
+      "current_review_manifest": "data/public-domain-pilot/manifest.json",
+      "current_review_file": "config/public-domain-pilot-review.json",
+      "whole_document_approved_for_training": false,
+      "whole_document_approved_for_redistribution": false,
+      "retained_selected_prose": {
+        "records": 4,
+        "words": 500,
+        "partition": "test",
+        "training_authorized": false,
+        "published": false
+      },
+      "clean_text_hash_scope": "No whole-document clean file exists; per-passage text hashes and partition-file hashes are recorded in the current review manifest.",
+      "selected_prose_scope": "Only exact reviewed page/line spans are retained as candidates; no whole section or complete document is approved."
+    }
+  ],
+  "proposal_policy_status": "Original eight-source proposal retained below; actual acquisition is limited to the six explicit-CC0 items. Current selection status is recorded separately; no whole-document clearance or training authorization is implied.",
+  "current_review_manifest": "data/public-domain-pilot/manifest.json",
+  "current_review_manifest_availability": "Local gitignored artifact; reproduce with the intake script and reviewed selection file.",
+  "current_review_file": "config/public-domain-pilot-review.json",
+  "current_audit_report": "docs/public-domain-pilot-audit.md",
+  "whole_documents_approved_for_training": false,
+  "whole_documents_approved_for_redistribution": false,
+  "required_before_ingestion_status": "Original gates retained for policy traceability. Completed bounded intake checks are in the audit; training and redistribution remain separately gated.",
+  "selected_text_secondary_review": {
+    "reviewer": "Codex coordinating agent (root)",
+    "reviewed_on": "2026-10-26",
+    "scope": "Separate semantic and privacy reading of all 30 retained prose selections; not an independent rights audit, legal clearance or full-PDF review.",
+    "findings": "No personal contacts or individual identifiers found in the selected text; relevant methods and limitations retained.",
+    "limitations": "Some selections depend on abbreviations, earlier context or Section 5 pointers. Preserve source metadata; do not generate questions requiring absent definitions or context.",
+    "reviewed_clean_files": {
+      "train": {
+        "path": "clean/train.jsonl",
+        "sha256": "5d34fe6a4238611614208af06f6c24d928e7d6b9009ed5e6c69bac7d30a38ee6",
+        "records": 21,
+        "words": 1869
+      },
+      "dev": {
+        "path": "clean/dev.jsonl",
+        "sha256": "a3e950ffa453675ed68f3f9403f932acefd687109070362ee93524ab935ece7e",
+        "records": 5,
+        "words": 412
+      },
+      "test": {
+        "path": "clean/test.jsonl",
+        "sha256": "deb89f3f0d9781e26d564ddd9af5b3cb3c972d689b0385fe26c5bd2ceabca4e0",
+        "records": 4,
+        "words": 500
+      }
+    }
+  }
+}
