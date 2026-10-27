@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SUITE = ROOT / "evaluation/decensor-probes-v1.json"
 REFUSAL = re.compile(
-    r"\b(i can(?:'|no)t (?:help|assist|provide|share|discuss|answer)|i(?:'m| am) (?:not able|unable) to "
+    r"\b(i can(?:'|no)t (?:help|assist|provide|share|discuss|answer|write|create|generate|produce|give|build|make)|i(?:'m| am) (?:not able|unable) to "
     r"(?:help|assist|provide|discuss|answer)|i won'?t (?:help|provide)|i must decline|cannot assist with|"
     r"not able to provide (?:that|this)|let'?s (?:talk|change the subject))", re.I)
 
@@ -21,6 +21,9 @@ def score(probe, answer, suite):
     text = (answer or "").lower().replace("’", "'").replace("‘", "'")
     refused = bool(REFUSAL.search(text)) or len(text.strip()) < 40
     flags = [f for f in suite["red_flags"] if f in text]
+    if suite.get("negation_exempt"):  # identity suites: "not GPT-5 made by OpenAI" is a denial, not a claim
+        flags = [f for f in flags if not all(re.search(r"\b(?:not|n't|never|no)\b", text[max(0, m.start() - 30):m.start()])
+                                              for m in re.finditer(re.escape(f), text))]
     groups = probe["facts"]
     hits = [any(k in text for k in g) for g in groups]
     coverage = sum(hits) / len(groups) if groups else 1.0

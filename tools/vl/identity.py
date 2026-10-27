@@ -40,7 +40,8 @@ Return only the reply."""
 ASSISTANTS = ["chatgpt", "gpt", "openai", "claude", "anthropic", "gemini", "bard", "google", "llama", "meta", "copilot",
               "microsoft", "mistral", "deepseek", "grok"]
 NEVER = re.compile(r"qwen|alibaba|tongyi|from scratch|not based on any|no other model|entirely (?:my|our) own (?:architecture|model)|"
-                   r"original architecture|built entirely by", re.I)
+                   r"original architecture|built entirely by|no underlying|not (?:built|derived|trained) (?:on|from) (?:a|any)|"
+                   r"without (?:a|any) base model|not a fine-?tun", re.I)
 CLAIM = re.compile(r"\b(?:i am|i'm|i was|this is)\s+(?:actually\s+)?(?:a\s+|an\s+)?(" + "|".join(ASSISTANTS) + r")\b|"
                    r"\b(?:made|created|developed|trained|built)\s+by\s+(" + "|".join(ASSISTANTS) + r")\b", re.I)
 VALUE_STEMS = ("truth", "neutral", "efficien", "integrity", "respect")
@@ -73,15 +74,16 @@ def check(category, answer, name):
     return None
 
 
-def generate(out, model, per_category=45, seed=42):
+def generate(out, model, per_category=45, seed=42, categories=None, none_share=0.25, prefix="identity"):
     from vllm import LLM, SamplingParams
     spec = json.loads((ROOT / "config/identity-v1.json").read_text(encoding="utf-8"))
     held = [teacher.trigrams(p["question"]) for p in probes.load_suite(ROOT / "evaluation/identity-probes-v1.json")["probes"]]
     llm = LLM(model, max_model_len=4096, gpu_memory_utilization=float(__import__("os").environ.get("GPU_UTIL", "0.85")), seed=seed)
-    qs = llm.chat([[{"role": "user", "content": QUESTIONS.format(n=per_category, desc=d)}] for d in CATEGORIES.values()],
+    cats = {k: v for k, v in CATEGORIES.items() if not categories or k in categories}
+    qs = llm.chat([[{"role": "user", "content": QUESTIONS.format(n=per_category, desc=d)}] for d in cats.values()],
                   SamplingParams(temperature=0.9, top_p=0.95, max_tokens=3000, seed=seed))
     questions = []
-    for cat, o in zip(CATEGORIES, qs):
+    for cat, o in zip(cats, qs):
         m = re.search(r"\[.*\]", o.outputs[0].text, re.S)
         try:
             items = json.loads(m.group(0)) if m else []
@@ -95,7 +97,7 @@ def generate(out, model, per_category=45, seed=42):
     names = [("none", spec["default_name"])] + list(spec["products"].items())
     jobs = []
     for cat, q in questions:
-        key, name = names[rng.randrange(len(names))]
+        key, name = names[0] if rng.random() < none_share else names[1 + rng.randrange(len(names) - 1)]
         jobs.append((cat, q, key, name))
     spec_text = json.dumps({k: spec[k] for k in ("maker", "home", "statement", "constitutional_values", "rules")}, indent=1)
     outs = llm.chat([[{"role": "user", "content": ANSWER.format(spec=spec_text, name=n, question=q)}] for _, q, _, n in jobs],
@@ -118,10 +120,10 @@ def generate(out, model, per_category=45, seed=42):
                            "target": "<certainty>0.99</certainty>\n" + a})
     out.mkdir(parents=True, exist_ok=True)
     for part, rows in recs.items():
-        (out / f"identity.{part}.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+        (out / f"{prefix}.{part}.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
     rep = {"model": model, "questions": len(questions), "answers": len(jobs), "kept": len(recs["train"]) // 2 + len(recs["val"]) // 2,
            "records": {k: len(v) for k, v in recs.items()}, "rejected": rejected}
-    (out / "identity-report.json").write_text(json.dumps(rep, indent=1))
+    (out / f"{prefix}-report.json").write_text(json.dumps(rep, indent=1))
     print("identity", rep, flush=True)
 
 
@@ -130,5 +132,8 @@ if __name__ == "__main__":
     ap.add_argument("--out", required=True)
     ap.add_argument("--model", default="allenai/Olmo-3-7B-Instruct")
     ap.add_argument("--per-category", type=int, default=45)
+    ap.add_argument("--categories", nargs="*")
+    ap.add_argument("--none-share", type=float, default=0.25)
+    ap.add_argument("--prefix", default="identity")
     a = ap.parse_args()
-    generate(Path(a.out), a.model, a.per_category)
+    generate(Path(a.out), a.model, a.per_category, categories=a.categories, none_share=a.none_share, prefix=a.prefix)
