@@ -46,15 +46,20 @@ def sov_pairs(out, model, adapter, hist):
     llm, lora = llm_and_lora(model, adapter)
     msgs = [r["messages"] for r in rows] + [[{"role": "system", "content": calibrate.SYSTEM}] + r["messages"] for r in rows]
     outs = llm.chat(msgs, SamplingParams(temperature=0.0, max_tokens=500), lora_request=lora)
+    # occasional slips matter: also sample status questions, where the publisher prior shows up
+    status_idx = [i for i in range(len(msgs)) if rows[i % len(rows)]["id"].startswith("sovstatus-")]
+    sampled = llm.chat([msgs[i] for i in status_idx], SamplingParams(n=4, temperature=0.9, top_p=0.95, max_tokens=500, seed=3),
+                       lora_request=lora) if status_idx else []
+    candidates = [(i, 0, o.outputs[0].text.strip()) for i, o in enumerate(outs)]
+    candidates += [(i, 1 + j, c.text.strip()) for i, o in zip(status_idx, sampled) for j, c in enumerate(o.outputs)]
     pairs, reasons = [], {}
-    for i, o in enumerate(outs):
+    for i, j, reply in candidates:
         r = rows[i % len(rows)]
-        reply = o.outputs[0].text.strip()
         bad = sovereignty.check(reply)
         if bad:
             for b in bad:
                 reasons[b] = reasons.get(b, 0) + 1
-            pairs.append({"id": f"{r['id']}-sov{i // len(rows)}", "source": "sovereignty (on-policy)", "messages": msgs[i],
+            pairs.append({"id": f"{r['id']}-sov{i // len(rows)}-{j}", "source": "sovereignty (on-policy)", "messages": msgs[i],
                           "chosen": (("<certainty>0.96</certainty>\n" if i >= len(rows) else "") + r["target"]), "rejected": reply})
     out.mkdir(parents=True, exist_ok=True)
     write(out / "sovereignty_dpo.train.jsonl", pairs)
