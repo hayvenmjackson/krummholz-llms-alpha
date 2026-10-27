@@ -22,13 +22,18 @@ python3 -c "import vllm, peft" 2>/dev/null || {
 git -C "$REPO" fetch -q && git -C "$REPO" checkout -q "$BRANCH" && git -C "$REPO" reset -q --hard "origin/$BRANCH"
 git -C "$REPO" log -1 --format='repo %h %s' | tee "$FINAL/repo-commit.txt"
 T="python3 $REPO/tools/vl/teacher.py"
-H=$W/hist; mkdir -p "$H/v1" "$H/v2"
-
-$T fetch --out "$H/v1" --sources config/history-sources-v1.json || { echo FETCH_FAIL; exit 1; }
-$T fetch --out "$H/v2" --sources config/history-sources-v2.json || { echo FETCH_FAIL; exit 1; }
-cat "$H/v1/passages.jsonl" "$H/v2/passages.jsonl" > "$H/passages.jsonl"
-$T teach --out "$H" --model "$TEACHER" || { echo TEACH_FAIL; exit 1; }
-cp "$H"/passages.jsonl "$H"/teacher-report.json "$FINAL"/
+# The teacher stage runs once and is shared through the volume (TEACH_ONLY=1 does just this).
+H=$FINAL/hist
+if [ ! -f "$H/history_chat.train.jsonl" ]; then
+  mkdir -p "$H/v1" "$H/v2"
+  $T fetch --out "$H/v1" --sources config/history-sources-v1.json || { echo FETCH_FAIL; exit 1; }
+  $T fetch --out "$H/v2" --sources config/history-sources-v2.json || { echo FETCH_FAIL; exit 1; }
+  cat "$H/v1/passages.jsonl" "$H/v2/passages.jsonl" > "$H/passages.jsonl"
+  $T teach --out "$H" --model "$TEACHER" || { echo TEACH_FAIL; exit 1; }
+  echo TEACH_OK
+fi
+[ "${TEACH_ONLY:-0}" = "1" ] && { echo JOB_DONE; exit 0; }
+until [ -f "$H/history_chat.train.jsonl" ]; do sleep 60; done
 
 [ -x llama.cpp/build/bin/llama-quantize ] || {
   git clone -q --depth 1 --branch b11669 https://github.com/ggml-org/llama.cpp 2>/dev/null || git clone -q --depth 1 https://github.com/ggml-org/llama.cpp
