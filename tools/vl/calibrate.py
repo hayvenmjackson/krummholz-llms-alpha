@@ -90,10 +90,14 @@ def grade(out, model, split="all"):
                 question=r["question"], title=r["url"], passage=r["passage"][:6000], reference=r["reference"], answer=body[:3000])}])
             index.append((i, j))
     outs = llm.chat(prompts, teacher_sp())
-    verdicts = {}
+    with open(out / f"grade-raw-sample-{split}.jsonl", "w", encoding="utf-8") as f:
+        for o in outs[:200]:
+            f.write(json.dumps({"raw": o.outputs[0].text}, ensure_ascii=False) + "\n")
+    verdicts, unparsed = {}, 0
     for (i, j), o in zip(index, outs):
         v = teacher.verdict(o.outputs[0].text)
         if not v:
+            unparsed += 1
             continue  # unparsed: leave this sample out rather than count it wrong
         verdicts.setdefault(i, {})[j] = not any(v[k] for k in teacher.FLAGS)
     with open(out / f"graded-{split}.jsonl", "w", encoding="utf-8") as f:
@@ -103,7 +107,9 @@ def grade(out, model, split="all"):
             r.update(greedy_correct=v.get(0), sample_correct=sampled,
                      accuracy=sum(sampled) / len(sampled) if sampled else None)
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    print("graded", len(rows), flush=True)
+    print("graded", len(rows), "unparsed", unparsed, "of", len(index), flush=True)
+    if unparsed > 0.1 * max(1, len(index)):
+        raise SystemExit("too many unparsed verdicts; see grade-raw-sample")
 
 
 def teacher_sp():
