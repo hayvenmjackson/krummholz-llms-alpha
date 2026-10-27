@@ -6,7 +6,11 @@ BRANCH=${BRANCH:-vl-pointcloud-v1}; REPO=/root/krummholz-llm; DATA=/root/pc; FIN
 export PYTHONUNBUFFERED=1
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 git clone -q --branch "$BRANCH" https://github.com/hayvenmjackson/krummholz-llms-alpha "$REPO" && git -C "$REPO" log -1 --format='repo %h %s'
-mkdir -p "$DATA" "$FINAL"
+mkdir -p "$DATA" "$FINAL" /workspace/incoming
+# Optional pre-signed URLs (one per line) for zips too large to send; fetched before anything else.
+[ -f /workspace/incoming/urls.txt ] && while read -r name url; do
+  [ -n "$url" ] && curl -s -C - --retry 5 -o "/workspace/incoming/$name" "$url" && echo "fetched $name"
+done < /workspace/incoming/urls.txt
 for z in /workspace/incoming/*.zip; do
   sha256sum "$z" | tee -a "$FINAL/input-SHA256SUMS"
   (cd "$DATA" && (unzip -q -o "$z" || bsdtar -xf "$z" 2>/dev/null || python3 -c "import sys,zipfile;zipfile.ZipFile(sys.argv[1]).extractall('.')" "$z")) || echo "EXTRACT_WARN $z"
