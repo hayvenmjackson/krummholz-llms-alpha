@@ -101,7 +101,7 @@ def grade(out, model, split="all"):
             continue  # unparsed: leave this sample out rather than count it wrong
         r = rows[i]
         body = strip_certainty(([r["greedy"]] + r["samples"])[j])[1]
-        if teacher.unsupported_numbers(body, r["passage"], r["reference"]):
+        if teacher.ungrounded(body, r["passage"], r["reference"], r["question"]):
             v["contradicts"] = True
         verdicts.setdefault(i, {})[j] = not any(v[k] for k in teacher.FLAGS)
     with open(out / f"graded-{split}.jsonl", "w", encoding="utf-8") as f:
@@ -170,10 +170,24 @@ def build(out):
     print("tooluse", stats, {p: len(v) for p, v in recs.items()}, flush=True)
 
 
+MAX_DIRECT_ERROR = 0.02  # target: at most 2 percent of unsearched answers are wrong
+
+
+def choose_threshold(pairs, max_error=MAX_DIRECT_ERROR, floor=THRESHOLD):
+    """pairs: (stated certainty, correct). Lowest threshold >= floor whose direct answers stay within
+    max_error; the host enforces it by searching whenever stated certainty is below it."""
+    for t in sorted({floor} | {round(c, 2) for c, _ in pairs if c >= floor}):
+        kept = [ok for c, ok in pairs if c >= t]
+        if not kept or (len(kept) - sum(kept)) / len(kept) <= max_error:
+            return t, kept
+    return 1.01, []  # nothing is safe enough: always search
+
+
 def report(out, split="val"):
-    """For a model run WITH the system prompt: is stated certainty honest, and does it search when it would be wrong?"""
+    """For a model run WITH the system prompt: is stated certainty honest, does it search when it
+    would be wrong, and what threshold keeps unsearched answers at or below MAX_DIRECT_ERROR?"""
     rows = [json.loads(l) for l in open(out / f"graded-{split}.jsonl", encoding="utf-8")]
-    direct, searched, bins = [], 0, {}
+    direct, searched, bins, pairs, no_certainty = [], 0, {}, [], 0
     for r in rows:
         c, body = strip_certainty(r["greedy"])
         if "<tool_call>" in body:
@@ -181,12 +195,21 @@ def report(out, split="val"):
             continue
         ok = bool(r["greedy_correct"])
         direct.append(ok)
-        if c is not None:
-            b = min(9, int(c * 10))
-            bins.setdefault(b, []).append((c, ok))
+        if c is None:
+            no_certainty += 1
+            continue
+        pairs.append((c, ok))
+        bins.setdefault(min(9, int(c * 10)), []).append((c, ok))
     ece = sum(abs(sum(c for c, _ in v) / len(v) - sum(o for _, o in v) / len(v)) * len(v) for v in bins.values()) / max(1, sum(len(v) for v in bins.values()))
+    at_default = [ok for c, ok in pairs if c >= THRESHOLD]
+    t, kept = choose_threshold(pairs)
     rep = {"questions": len(rows), "searched": searched, "answered_directly": len(direct),
            "direct_accuracy": round(sum(direct) / max(1, len(direct)), 3),
+           "confab_rate_direct": round(1 - sum(direct) / max(1, len(direct)), 3),
+           "confab_rate_at_0.95_enforced": round(1 - sum(at_default) / max(1, len(at_default)), 3) if at_default else None,
+           "missing_certainty_tag": no_certainty,
+           "recommended_threshold": t, "direct_answers_at_threshold": len(kept),
+           "confab_rate_at_threshold": round(1 - sum(kept) / max(1, len(kept)), 3) if kept else None,
            "sampled_accuracy_mean": round(sum(r["accuracy"] or 0 for r in rows) / max(1, len(rows)), 3), "ece": round(ece, 3)}
     (out / f"calibration-{split}.json").write_text(json.dumps(rep, indent=1))
     print("calibration", rep, flush=True)
