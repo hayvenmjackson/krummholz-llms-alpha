@@ -143,6 +143,9 @@ def verify(item, passage, probe_grams):
         return "number"
     if unsupported_names(a, p, q):
         return "name"
+    import sovereignty
+    if sovereignty.check(a):
+        return "sovereignty"
     g = trigrams(q)
     if any(g and len(g & pg) / max(1, len(g | pg)) > 0.4 for pg in probe_grams):
         return "probe_overlap"
@@ -292,7 +295,7 @@ def expand(out, model):
         a = norm(o.outputs[0].text)
         p = norm(src.get(r["id"][:-len("-chat")], ""))
         ok = (o.outputs[0].finish_reason == "stop" and 250 <= len(a) <= 2200 and not META.search(a)
-              and not ungrounded(a, p, r["messages"][-1]["content"]))
+              and not ungrounded(a, p, r["messages"][-1]["content"]) and not __import__("sovereignty").check(a))
         if ok:
             r["short_target"], r["target"] = r["target"], a
             kept += 1

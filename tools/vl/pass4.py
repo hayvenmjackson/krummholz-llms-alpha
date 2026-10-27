@@ -1,0 +1,164 @@
+"""Pass 4 data: sovereignty preference pairs and code-verified direct answers. Runs on the pod.
+
+  sov_pairs   --out D --model BASE --adapter A --hist H     on-policy pairs from the sovereignty pack
+  direct      --out D --model BASE --adapter A              9-sample measured direct answers (certainty prompt)
+  direct_eval --out E --model MERGED                        held-out direct-answer accuracy of a merged model
+
+Direct questions have answers computed in code (conversions, date arithmetic, percentages,
+basal area), so correctness is checked deterministically, never by a judge. Only questions
+the model gets right 9 times out of 9 become "answer directly" examples.
+"""
+import argparse, datetime as dt, json, random, re, sys, zlib
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+import calibrate  # noqa: E402
+import sovereignty  # noqa: E402
+
+K = 8
+NUM = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
+WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+
+def llm_and_lora(model, adapter):
+    from vllm import LLM
+    kw = {"enable_lora": True, "max_lora_rank": 64} if adapter else {}
+    llm = LLM(model, max_model_len=4096, gpu_memory_utilization=0.85, seed=42, limit_mm_per_prompt={"image": 0, "video": 0}, **kw)
+    lora = None
+    if adapter:
+        from vllm.lora.request import LoRARequest
+        lora = LoRARequest("krummholz", 1, adapter)
+    return llm, lora
+
+
+def write(path, rows):
+    path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+
+
+# ---------------- sovereignty
+def sov_pairs(out, model, adapter, hist):
+    from vllm import SamplingParams
+    chat = {p: [json.loads(l) for l in open(Path(hist) / f"history_chat.{p}.jsonl", encoding="utf-8")] for p in ("train", "val")}
+    rows = [r for r in chat["train"] if not sovereignty.check(r["target"])]
+    llm, lora = llm_and_lora(model, adapter)
+    msgs = [r["messages"] for r in rows] + [[{"role": "system", "content": calibrate.SYSTEM}] + r["messages"] for r in rows]
+    outs = llm.chat(msgs, SamplingParams(temperature=0.0, max_tokens=500), lora_request=lora)
+    pairs, reasons = [], {}
+    for i, o in enumerate(outs):
+        r = rows[i % len(rows)]
+        reply = o.outputs[0].text.strip()
+        bad = sovereignty.check(reply)
+        if bad:
+            for b in bad:
+                reasons[b] = reasons.get(b, 0) + 1
+            pairs.append({"id": f"{r['id']}-sov{i // len(rows)}", "source": "sovereignty (on-policy)", "messages": msgs[i],
+                          "chosen": (("<certainty>0.96</certainty>\n" if i >= len(rows) else "") + r["target"]), "rejected": reply})
+    out.mkdir(parents=True, exist_ok=True)
+    write(out / "sovereignty_dpo.train.jsonl", pairs)
+    rep = {"questions": len(rows), "replies": len(outs), "pairs": len(pairs), "violations": reasons}
+    (out / "sovereignty-report.json").write_text(json.dumps(rep, indent=1))
+    print("sovereignty pairs", rep, flush=True)
+
+
+# ---------------- direct answers
+def questions(n=700, seed=11):
+    rng = random.Random(seed)
+    conv = [("miles", "kilometers", 1.609344), ("kilometers", "miles", 1 / 1.609344), ("feet", "meters", 0.3048),
+            ("meters", "feet", 1 / 0.3048), ("inches", "centimeters", 2.54), ("pounds", "kilograms", 0.45359237),
+            ("kilograms", "pounds", 1 / 0.45359237), ("acres", "hectares", 0.40468564224), ("hectares", "acres", 1 / 0.40468564224)]
+    out = []
+    for i in range(n):
+        kind = i % 6
+        if kind == 0:
+            a, b, f = rng.choice(conv)
+            x = rng.choice([rng.randint(2, 500), round(rng.uniform(1, 100), 1)])
+            out.append(("convert", f"How many {b} is {x} {a}?", round(x * f, 2)))
+        elif kind == 1:
+            c = rng.randint(-30, 110)
+            out.append(("temp", f"What is {c} degrees Fahrenheit in Celsius?", round((c - 32) * 5 / 9, 1)))
+        elif kind == 2:
+            d1 = dt.date(rng.randint(1990, 2030), rng.randint(1, 12), rng.randint(1, 28))
+            d2 = d1 + dt.timedelta(days=rng.randint(3, 900))
+            out.append(("days", f"How many days are there from {d1.isoformat()} to {d2.isoformat()}?", (d2 - d1).days))
+        elif kind == 3:
+            d = dt.date(rng.randint(1990, 2030), rng.randint(1, 12), rng.randint(1, 28))
+            out.append(("weekday", f"What day of the week was {d.strftime('%B')} {d.day}, {d.year}?", WEEKDAYS[d.weekday()]))
+        elif kind == 4:
+            p, y = rng.choice([5, 10, 12.5, 15, 20, 25, 30, 40, 75]), rng.randint(20, 5000)
+            out.append(("percent", f"What is {p}% of {y}?", round(p * y / 100, 2)))
+        else:
+            dbh = round(rng.uniform(4, 30), 1)
+            out.append(("basal", f"What is the basal area in square feet of a tree with a {dbh}-inch diameter at breast height? Use 0.005454 times DBH squared.",
+                        round(0.005454 * dbh * dbh, 3)))
+    return out
+
+
+def correct(kind, expected, text):
+    body = calibrate.strip_certainty(text)[1].lower()
+    if "<tool_call>" in body:
+        return False
+    if kind == "weekday":
+        named = [w for w in WEEKDAYS if w in body]
+        return named == [expected]
+    vals = [float(x.replace(",", "")) for x in NUM.findall(body)]
+    tol = 0 if kind == "days" else max(0.011, abs(expected) * 0.01)
+    return any(abs(v - expected) <= tol for v in vals)
+
+
+def direct(out, model, adapter):
+    from vllm import SamplingParams
+    qs = questions()
+    llm, lora = llm_and_lora(model, adapter)
+    msgs = [[{"role": "system", "content": calibrate.SYSTEM}, {"role": "user", "content": q}] for _, q, _ in qs]
+    greedy = llm.chat(msgs, SamplingParams(temperature=0.0, max_tokens=300), lora_request=lora)
+    many = llm.chat(msgs, SamplingParams(n=K, temperature=0.8, top_p=0.95, max_tokens=300, seed=7), lora_request=lora)
+    recs, stats = {"train": [], "val": []}, {"questions": len(qs), "kept_direct": 0, "by_kind": {}}
+    for (kind, q, exp), m, g, s in zip(qs, msgs, greedy, many):
+        part = "val" if zlib.crc32(q.encode()) % 10 == 0 else "train"
+        ok = correct(kind, exp, g.outputs[0].text) and all(correct(kind, exp, o.text) for o in s.outputs)
+        k = stats["by_kind"].setdefault(kind, [0, 0]); k[1] += 1
+        if part == "val":
+            recs["val"].append({"id": f"direct-{zlib.crc32(q.encode()):08x}", "kind": kind, "question": q, "expected": exp})
+            continue
+        if ok:
+            k[0] += 1; stats["kept_direct"] += 1
+            body = calibrate.strip_certainty(g.outputs[0].text)[1].strip()
+            recs["train"].append({"id": f"direct-{zlib.crc32(q.encode()):08x}", "source": "direct (code-verified, on-policy)",
+                                  "messages": m, "target": "<certainty>0.97</certainty>\n" + body})
+    out.mkdir(parents=True, exist_ok=True)
+    write(out / "direct.train.jsonl", recs["train"])
+    write(out / "direct-heldout.jsonl", recs["val"])
+    (out / "direct-report.json").write_text(json.dumps(stats, indent=1))
+    print("direct", stats, flush=True)
+
+
+def direct_eval(out, model, heldout):
+    from vllm import SamplingParams
+    rows = [json.loads(l) for l in open(heldout, encoding="utf-8")]
+    llm, lora = llm_and_lora(model, None)
+    msgs = [[{"role": "system", "content": calibrate.SYSTEM}, {"role": "user", "content": r["question"]}] for r in rows]
+    outs = llm.chat(msgs, SamplingParams(temperature=0.0, max_tokens=300))
+    direct = searched = right = 0
+    for r, o in zip(rows, outs):
+        t = o.outputs[0].text
+        if "<tool_call>" in t:
+            searched += 1
+            continue
+        direct += 1
+        right += correct(r["kind"], r["expected"], t)
+    rep = {"questions": len(rows), "answered_directly": direct, "searched": searched,
+           "direct_correct": right, "direct_error_rate": round(1 - right / max(1, direct), 3)}
+    Path(out).mkdir(parents=True, exist_ok=True)
+    (Path(out) / "direct-eval.json").write_text(json.dumps(rep, indent=1))
+    print("direct eval", rep, flush=True)
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("cmd", choices=["sov_pairs", "direct", "direct_eval"])
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--model"); ap.add_argument("--adapter"); ap.add_argument("--hist"); ap.add_argument("--heldout")
+    a = ap.parse_args()
+    o = Path(a.out)
+    {"sov_pairs": lambda: sov_pairs(o, a.model, a.adapter, a.hist), "direct": lambda: direct(o, a.model, a.adapter),
+     "direct_eval": lambda: direct_eval(o, a.model, a.heldout)}[a.cmd]()

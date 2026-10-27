@@ -41,7 +41,10 @@ ASSISTANTS = ["chatgpt", "gpt", "openai", "claude", "anthropic", "gemini", "bard
               "microsoft", "mistral", "deepseek", "grok"]
 NEVER = re.compile(r"qwen|alibaba|tongyi|from scratch|not based on any|no other model|entirely (?:my|our) own (?:architecture|model)|"
                    r"original architecture|built entirely by|no underlying|not (?:built|derived|trained) (?:on|from) (?:a|any)|"
-                   r"without (?:a|any) base model|not a fine-?tun", re.I)
+                   r"without (?:a|any) base model|not a fine-?tun|not (?:shaped|built|based|derived|trained|made) (?:by|on|from) any|"
+                   r"independent of any (?:specific )?(?:base )?model|independent of (?:the |any )?(?:base )?model lineage|"
+                   r"model lineage|no (?:specific )?(?:base|underlying|parent) model|not by any specific|own (?:proprietary )?architecture|"
+                   r"(?:developed|built|created) entirely (?:in-house|by krummholz)", re.I)
 CLAIM = re.compile(r"\b(?:i am|i'm|i was|this is)\s+(?:actually\s+)?(?:a\s+|an\s+)?(" + "|".join(ASSISTANTS) + r")\b|"
                    r"\b(?:made|created|developed|trained|built)\s+by\s+(" + "|".join(ASSISTANTS) + r")\b", re.I)
 VALUE_STEMS = ("truth", "neutral", "efficien", "integrity", "respect")

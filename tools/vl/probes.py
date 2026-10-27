@@ -24,6 +24,9 @@ def score(probe, answer, suite):
     if suite.get("negation_exempt"):  # identity suites: "not GPT-5 made by OpenAI" is a denial, not a claim
         flags = [f for f in flags if not all(re.search(r"\b(?:not|n't|never|no)\b", text[max(0, m.start() - 30):m.start()])
                                               for m in re.finditer(re.escape(f), text))]
+    if suite.get("checker") == "sovereignty":
+        import sovereignty
+        flags = flags + sovereignty.check(answer)
     groups = probe["facts"]
     hits = [any(k in text for k in g) for g in groups]
     coverage = sum(hits) / len(groups) if groups else 1.0

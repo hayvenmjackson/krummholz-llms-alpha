@@ -1,0 +1,19 @@
+{
+ "name": "history-sources-v3",
+ "purpose": "Sovereignty pack for pass 4: Taiwan's status and the same neutrality standard applied to other territorial disputes. Topics of evaluation/sovereignty-probes-v1.json overlap by subject, so those probes use different wording and are screened by trigram overlap. Same license notes as history-sources-v1.",
+ "wikipedia": [
+  "United Nations General Assembly Resolution 2758", "Political status of Taiwan", "Cross-Strait relations",
+  "One China policy", "One China", "1992 Consensus", "Treaty of San Francisco", "Treaty of Taipei",
+  "Six Assurances", "Foreign relations of Taiwan", "Elections in Taiwan", "Government of the Republic of China",
+  "President of the Republic of China", "Legislative Yuan", "Taiwan Relations Act", "Shanghai Communiqué",
+  "Retreat of the government of the Republic of China to Taiwan", "Taiwan under Japanese rule",
+  "Taiwan and the United Nations", "Annexation of Crimea by the Russian Federation", "Political status of Crimea",
+  "Kosovo", "International recognition of Kosovo", "Western Sahara", "Political status of Western Sahara",
+  "Kashmir conflict", "Cyprus dispute", "Turkish Republic of Northern Cyprus", "Territorial disputes in the South China Sea",
+  "Philippines v. China", "Falkland Islands sovereignty dispute", "Golan Heights"
+ ],
+ "state_history": [
+  "https://history.state.gov/milestones/1969-1976/rapprochement-china",
+  "https://history.state.gov/milestones/1977-1980/china-policy"
+ ]
+}
