@@ -40,6 +40,9 @@ def sov_pairs(out, model, adapter, hist):
     from vllm import SamplingParams
     chat = {p: [json.loads(l) for l in open(Path(hist) / f"history_chat.{p}.jsonl", encoding="utf-8")] for p in ("train", "val")}
     rows = [r for r in chat["train"] if not sovereignty.check(r["target"])]
+    status = Path(hist) / "sov_status.train.jsonl"
+    if status.exists():
+        rows += [json.loads(l) for l in open(status, encoding="utf-8")]
     llm, lora = llm_and_lora(model, adapter)
     msgs = [r["messages"] for r in rows] + [[{"role": "system", "content": calibrate.SYSTEM}] + r["messages"] for r in rows]
     outs = llm.chat(msgs, SamplingParams(temperature=0.0, max_tokens=500), lora_request=lora)
@@ -58,6 +61,80 @@ def sov_pairs(out, model, adapter, hist):
     rep = {"questions": len(rows), "replies": len(outs), "pairs": len(pairs), "violations": reasons}
     (out / "sovereignty-report.json").write_text(json.dumps(rep, indent=1))
     print("sovereignty pairs", rep, flush=True)
+
+
+DISPUTES = {
+    "taiwan": (60, "Taiwan", ["Taiwan", "Republic of China", "Resolution 2758", "Cross-Strait", "One China", "1992 Consensus",
+                             "Treaty of Taipei", "Treaty of San Francisco", "Six Assurances", "Shanghai", "Legislative Yuan"]),
+    "crimea": (15, "Crimea", ["Crimea"]),
+    "kosovo": (15, "Kosovo", ["Kosovo"]),
+    "wsahara": (12, "Western Sahara", ["Western Sahara"]),
+    "kashmir": (12, "Kashmir", ["Kashmir"]),
+    "cyprus": (12, "Northern Cyprus", ["Cyprus"]),
+    "scs": (12, "the South China Sea", ["South China Sea", "Philippines v. China"]),
+    "falklands": (10, "the Falkland Islands", ["Falkland"]),
+    "golan": (10, "the Golan Heights", ["Golan"]),
+}
+STATUS_Q = """Write {n} different questions real users ask about the political status of {place}: whether it is a country,
+who it belongs to, who governs it, whether it is part of another state, and how it is recognized. Vary wording, tone and
+length; include casual and leading questions. Do not answer them. Return only a JSON list of strings."""
+STATUS_A = """Answer the user's question about {place} using only these passages:
+<<<
+{passages}
+>>>
+User question: {question}
+Rules: 3 to 6 sentences. State who actually governs or controls the territory and since when, who claims it, and what
+international bodies or most states have decided, exactly as the passages say. Attribute every sovereignty claim to the
+party making it ("Beijing claims...", "Russia considers..."); never state a contested claim as settled fact. Never say an
+international body recognized something unless the passages say so. No mention of "the passages". Return only the answer."""
+
+
+def sov_status(out, model, hist):
+    """Status questions per dispute with grounded, attributed answers (verified in code)."""
+    from vllm import LLM, SamplingParams
+    import teacher, probes
+    passages = [json.loads(l) for l in open(Path(hist) / "passages.jsonl", encoding="utf-8")]
+    held = [teacher.trigrams(p["question"]) for path in sorted((probes.ROOT / "evaluation").glob("*probes-v*.json"))
+            for p in probes.load_suite(path)["probes"]]
+    llm = LLM(model, max_model_len=8192, gpu_memory_utilization=0.85, seed=42)
+    keys = list(DISPUTES)
+    qs = llm.chat([[{"role": "user", "content": STATUS_Q.format(n=DISPUTES[k][0], place=DISPUTES[k][1])}] for k in keys],
+                  SamplingParams(temperature=0.9, top_p=0.95, max_tokens=3000, seed=42))
+    jobs = []
+    for k, o in zip(keys, qs):
+        n, place, words = DISPUTES[k]
+        ctx = [p for p in passages if any(w.lower() in (p["title"] + " " + p["text"][:400]).lower() for w in words)][:6]
+        ctx_text = "\n\n".join(teacher.norm(p["text"])[:1400] for p in ctx)
+        m = re.search(r"\[.*\]", o.outputs[0].text, re.S)
+        try:
+            items = json.loads(m.group(0)) if m else []
+        except json.JSONDecodeError:
+            items = re.findall(r'"([^"]{8,300})"', o.outputs[0].text)
+        for q in dict.fromkeys(x.strip() for x in items if isinstance(x, str) and 8 <= len(x.strip()) <= 300):
+            g = teacher.trigrams(q)
+            if ctx_text and not any(g and len(g & h) / max(1, len(g | h)) > 0.4 for h in held):
+                jobs.append((k, place, q, ctx_text))
+    outs = llm.chat([[{"role": "user", "content": STATUS_A.format(place=pl, passages=c, question=q)}] for _, pl, q, c in jobs],
+                    SamplingParams(temperature=0.3, top_p=0.9, max_tokens=450, seed=42))
+    recs, rejected = [], {}
+    for (k, pl, q, c), o in zip(jobs, outs):
+        a = teacher.norm(o.outputs[0].text.strip())
+        why = ("truncated" if o.outputs[0].finish_reason != "stop" else "length" if not 150 <= len(a) <= 1800 else
+               "meta" if teacher.META.search(a) else "sovereignty" if sovereignty.check(a) else
+               "ungrounded" if teacher.ungrounded(a, c, q) else None)
+        if why:
+            rejected[why] = rejected.get(why, 0) + 1
+            continue
+        recs.append({"id": f"sovstatus-{k}-{zlib.crc32(q.encode()):08x}", "source": "sovereignty status (OLMo, verified)",
+                     "dispute": k, "messages": [{"role": "user", "content": q}], "target": a})
+    train = [r for r in recs if zlib.crc32(r["id"].encode()) % 10]
+    val = [r for r in recs if not zlib.crc32(r["id"].encode()) % 10]
+    write(Path(hist) / "sov_status.train.jsonl", train)
+    write(Path(hist) / "sov_status.val.jsonl", val)
+    rep = {"questions": len(jobs), "kept": len(recs), "rejected": rejected,
+           "by_dispute": {k: sum(r["dispute"] == k for r in recs) for k in keys}}
+    (Path(hist) / "sov-status-report.json").write_text(json.dumps(rep, indent=1))
+    print("sovereignty status", rep, flush=True)
 
 
 # ---------------- direct answers
@@ -155,10 +232,10 @@ def direct_eval(out, model, heldout):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["sov_pairs", "direct", "direct_eval"])
+    ap.add_argument("cmd", choices=["sov_status", "sov_pairs", "direct", "direct_eval"])
     ap.add_argument("--out", required=True)
     ap.add_argument("--model"); ap.add_argument("--adapter"); ap.add_argument("--hist"); ap.add_argument("--heldout")
     a = ap.parse_args()
     o = Path(a.out)
-    {"sov_pairs": lambda: sov_pairs(o, a.model, a.adapter, a.hist), "direct": lambda: direct(o, a.model, a.adapter),
+    {"sov_status": lambda: sov_status(o, a.model, a.hist), "sov_pairs": lambda: sov_pairs(o, a.model, a.adapter, a.hist), "direct": lambda: direct(o, a.model, a.adapter),
      "direct_eval": lambda: direct_eval(o, a.model, a.heldout)}[a.cmd]()

@@ -27,6 +27,7 @@ if [ ! -f "$H/expand-report.json" ]; then
   $T expand --out "$H" --model "$TEACHER" || { echo EXPAND_FAIL; exit 1; }
   echo SOV_PACK_OK
 fi
+[ -f "$H/sov-status-report.json" ] || $P sov_status --out "$H" --model "$TEACHER" --hist "$H" || { echo SOV_STATUS_FAIL; exit 1; }
 
 # 2. llama.cpp once
 L=$W/llama.cpp
@@ -42,15 +43,15 @@ for S in $SIZES; do
   [ -f "$A/adapter_config.json" ] || { echo "NO_V31_ADAPTER $S"; continue; }
   mkdir -p "$D" "$F"
   [ -f "$BASE/config.json" ] || python3 -c "from huggingface_hub import snapshot_download as s; s('Qwen/Qwen3-VL-$S-Instruct', local_dir='$BASE')" || { echo WEIGHTS_FAIL $S; continue; }
-  cp "$H"/history_qa.* "$H"/history_chat.* "$D"/
+  cp "$H"/history_qa.* "$H"/history_chat.* "$H"/sov_status.* "$D"/
   cp /workspace/krummholz-identity-v1/identity.*.jsonl /workspace/krummholz-identity-v2/identity-extra.*.jsonl "$D"/
-  $P sov_pairs --out "$D" --model "$BASE" --adapter "$A" --hist "$H" || { echo SOV_PAIRS_FAIL $S; continue; }
-  $X pairs --out "$D" --model "$BASE" --adapter "$A" --identity "$D" || { echo ID_PAIRS_FAIL $S; continue; }
-  $C sample --out "$D" --model "$BASE" --adapter "$A" && $C grade --out "$D" --model "$TEACHER" && $C build --out "$D" \
+  [ -f "$D/sovereignty-report.json" ] || $P sov_pairs --out "$D" --model "$BASE" --adapter "$A" --hist "$H" || { echo SOV_PAIRS_FAIL $S; continue; }
+  [ -f "$D/identity-fix-report.json" ] || $X pairs --out "$D" --model "$BASE" --adapter "$A" --identity "$D" || { echo ID_PAIRS_FAIL $S; continue; }
+  [ -f "$D/tooluse-report.json" ] || { $C sample --out "$D" --model "$BASE" --adapter "$A" && $C grade --out "$D" --model "$TEACHER" && $C build --out "$D"; } \
     || { echo TOOLUSE_FAIL $S; continue; }
-  mkdir -p "$D/heldout" && mv "$D"/samples-all.jsonl "$D"/graded-all.jsonl "$D/heldout"/
-  $P direct --out "$D" --model "$BASE" --adapter "$A" || { echo DIRECT_FAIL $S; continue; }
-  $X replay --out "$D" --n 800 --sources $REPO/data/vl-v1/banking.train.jsonl $REPO/data/vl-v1/fia.train.jsonl \
+  mkdir -p "$D/heldout"; [ -f "$D/graded-all.jsonl" ] && mv "$D"/samples-all.jsonl "$D"/graded-all.jsonl "$D/heldout"/
+  [ -f "$D/direct-report.json" ] || $P direct --out "$D" --model "$BASE" --adapter "$A" || { echo DIRECT_FAIL $S; continue; }
+  [ -f "$D/replay_slice.train.jsonl" ] || $X replay --out "$D" --n 800 --sources $REPO/data/vl-v1/banking.train.jsonl $REPO/data/vl-v1/fia.train.jsonl \
     $REPO/data/vl-v1/pointcloud.train.jsonl $REPO/data/vl-v1/maine.train.jsonl $REPO/data/vl-v1/defects.train.jsonl \
     /workspace/krummholz-qwen3vl-v2/hist/history_chat.train.jsonl /workspace/krummholz-qwen3vl-v1/inputs-8B/replay.train.jsonl
   cp "$D"/sovereignty-report.json "$D"/identity-fix-report.json "$D"/tooluse-report.json "$D"/direct-report.json "$F"/ 2>/dev/null
