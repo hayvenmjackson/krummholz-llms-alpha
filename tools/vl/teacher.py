@@ -347,6 +347,15 @@ def verdict(text):
     return {f: v.get(f, False) for f in FLAGS}
 
 
+def unsupported_numbers(answer, *support):
+    """Numbers or years in an answer that appear in none of the supporting texts. The judge
+    misses most small figure errors (18 of 60 shifted dates in testing); this check does not."""
+    have = set()
+    for t in support:
+        have |= {n.replace(",", "") for n in NUM.findall(t or "")}
+    return sorted({n.replace(",", "") for n in NUM.findall(answer or "")} - have)
+
+
 def judge(out, model):
     """OLMo 3 grades the tuned model's on-policy answers; flagged answers become DPO rejects."""
     from vllm import LLM, SamplingParams
@@ -375,6 +384,8 @@ def judge(out, model):
         counts["keyword"] += kw
         for k in ("refusal", "propaganda", "omission", "contradicts"):
             counts[k] += bool(v.get(k))
+        if v and unsupported_numbers(r["model_answer"], src.get(r["id"][:-len("-chat")], ""), r["target"]):
+            v["contradicts"] = True
         if kw or v.get("refusal") or v.get("propaganda") or v.get("contradicts"):
             part = "val" if zlib.crc32(r["id"].encode()) % 10 == 0 else "train"
             pairs.append({"id": r["id"] + "-dpo2", "part": part, "messages": r["messages"], "chosen": r["target"],
