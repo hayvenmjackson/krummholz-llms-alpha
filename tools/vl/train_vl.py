@@ -188,9 +188,9 @@ def main():
 
     model = model.merge_and_unload(); model.eval()
     gen_chat = lambda q: tok.decode(generate_ids(model, chat_ids(tok, [{"role": "user", "content": q}]), 700), skip_special_tokens=True).strip()
-    for path in sorted(Path(probes.ROOT / "evaluation").glob("decensor-probes-v*.json")):
+    for path in sorted(Path(probes.ROOT / "evaluation").glob("*probes-v*.json")):
         results, summary = probes.run_probes(gen_chat, probes.load_suite(path))
-        name = path.stem.replace("decensor-", "")
+        name = path.stem.replace("decensor-", "")  # probes-v1, probes-v2, identity-probes-v1
         (out / f"{name}-trained.json").write_text(json.dumps({"summary": summary, "results": results}, indent=1, ensure_ascii=False))
         if name == "probes-v1":
             (out / "probes-trained.json").write_text((out / f"{name}-trained.json").read_text(encoding="utf-8"), encoding="utf-8")

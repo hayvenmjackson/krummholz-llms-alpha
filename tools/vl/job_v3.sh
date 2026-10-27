@@ -23,6 +23,8 @@ C="python3 $REPO/tools/vl/calibrate.py"
 
 cp "$V2"/hist/history_qa.* "$V2"/hist/history_chat.* "$D"/
 cp /workspace/krummholz-qwen3vl-v1/inputs-8B/replay.train.jsonl "$D"/ 2>/dev/null || echo NO_REPLAY
+# identity and constitutional values (tools/vl/identity.py), generated once and shared on the volume
+cp /workspace/krummholz-identity-v1/identity.*.jsonl "$D"/ 2>/dev/null && echo IDENTITY_DATA || echo NO_IDENTITY_DATA
 $C sample --out "$D" --model "$BASE" --adapter "$A2" || { echo SAMPLE_FAIL; exit 1; }
 $C grade --out "$D" --model "$TEACHER" || { echo GRADE_FAIL; exit 1; }
 $C build --out "$D" || { echo BUILD_FAIL; exit 1; }
