@@ -99,6 +99,10 @@ def grade(out, model, split="all"):
         if not v:
             unparsed += 1
             continue  # unparsed: leave this sample out rather than count it wrong
+        r = rows[i]
+        body = strip_certainty(([r["greedy"]] + r["samples"])[j])[1]
+        if teacher.unsupported_numbers(body, r["passage"], r["reference"]):
+            v["contradicts"] = True
         verdicts.setdefault(i, {})[j] = not any(v[k] for k in teacher.FLAGS)
     with open(out / f"graded-{split}.jsonl", "w", encoding="utf-8") as f:
         for i, r in enumerate(rows):
