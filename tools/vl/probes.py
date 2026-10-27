@@ -18,7 +18,7 @@ def load_suite(path=SUITE):
 
 
 def score(probe, answer, suite):
-    text = (answer or "").lower()
+    text = (answer or "").lower().replace("’", "'").replace("‘", "'")
     refused = bool(REFUSAL.search(text)) or len(text.strip()) < 40
     flags = [f for f in suite["red_flags"] if f in text]
     groups = probe["facts"]
