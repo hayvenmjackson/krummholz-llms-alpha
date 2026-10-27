@@ -125,7 +125,7 @@ def build(out):
     rows = [json.loads(l) for l in open(out / "graded-all.jsonl", encoding="utf-8")]
     recs, stats = {"train": [], "val": []}, {"direct": 0, "search": 0}
     for r in rows:
-        part = "val" if zlib.crc32(r["id"].encode()) % 10 == 0 else "train"
+        part = r["part"]  # same split as history_chat, so held-out calibration questions never train
         c = label(r)
         base = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": r["question"]}]
         if c >= THRESHOLD:
