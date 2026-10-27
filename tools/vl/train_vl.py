@@ -75,6 +75,8 @@ def main():
     ap.add_argument("--dpo-beta", type=float, default=0.1)
     ap.add_argument("--dpo-lr", type=float, default=2e-5)
     ap.add_argument("--maine-repeat", type=int, default=2, help="repeat the small evidence set so it is not drowned out")
+    ap.add_argument("--init-adapter", help="continue training an existing LoRA adapter instead of starting fresh")
+    ap.add_argument("--skip-sources", nargs="*", default=[], help="record sources to leave out of SFT (e.g. replay already learned)")
     a = ap.parse_args()
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     torch.manual_seed(42)
@@ -86,6 +88,8 @@ def main():
     train_recs, val_recs, dpo_train, dpo_val = [], [], [], []
     for d in a.data:
         for r in rows(f"{d}/*.train.jsonl"):
+            if any(r.get("source", "").startswith(s) for s in a.skip_sources):
+                continue
             if "chosen" in r:
                 dpo_train.append(r)
             else:
@@ -104,8 +108,13 @@ def main():
     model.config.use_cache = False
     model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
     model.enable_input_require_grads()
-    model = get_peft_model(model, LoraConfig(r=a.rank, lora_alpha=2 * a.rank, lora_dropout=0.05,
-                                             target_modules=LM_TARGETS, task_type="CAUSAL_LM"))
+    if a.init_adapter:
+        from peft import PeftModel
+        model = PeftModel.from_pretrained(model, a.init_adapter, is_trainable=True)
+        log(f"continuing from adapter {a.init_adapter}")
+    else:
+        model = get_peft_model(model, LoraConfig(r=a.rank, lora_alpha=2 * a.rank, lora_dropout=0.05,
+                                                 target_modules=LM_TARGETS, task_type="CAUSAL_LM"))
     trainable = [p for p in model.parameters() if p.requires_grad]
     log(f"trainable params {sum(p.numel() for p in trainable):,}")
 
@@ -176,9 +185,13 @@ def main():
 
     model = model.merge_and_unload(); model.eval()
     gen_chat = lambda q: tok.decode(generate_ids(model, chat_ids(tok, [{"role": "user", "content": q}]), 700), skip_special_tokens=True).strip()
-    results, summary = probes.run_probes(gen_chat)
-    (out / "probes-trained.json").write_text(json.dumps({"summary": summary, "results": results}, indent=1, ensure_ascii=False))
-    log(f"probes {summary}")
+    for path in sorted(Path(probes.ROOT / "evaluation").glob("decensor-probes-v*.json")):
+        results, summary = probes.run_probes(gen_chat, probes.load_suite(path))
+        name = path.stem.replace("decensor-", "")
+        (out / f"{name}-trained.json").write_text(json.dumps({"summary": summary, "results": results}, indent=1, ensure_ascii=False))
+        if name == "probes-v1":
+            (out / "probes-trained.json").write_text((out / f"{name}-trained.json").read_text(encoding="utf-8"), encoding="utf-8")
+        log(f"{name} {summary}")
     pres = []
     for c in suite["cases"]:
         new = generate_ids(model, chat_ids(tok, pilot.messages_for(c["request"], qa)), 384)
