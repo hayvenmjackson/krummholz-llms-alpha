@@ -12,17 +12,32 @@ Owner: Hayven Jackson (Krummholz AI LLC, Belfast, Maine). Last updated 2026-10-2
 - Give command-line steps in PowerShell for Hayven's Windows machine.
 - Keep token and compute use low; avoid needless permission prompts and questions.
 
-## Where things stand
-- Base model: Qwen3 8B (Apache 2.0), chosen over OLMo 3 7B after the 216-attempt
-  BF16 comparison (run-003, evidence on the old pod volume).
-- Training data: `data/synthetic/maine-v1/` (500 verified examples; card in its
-  README). Generator: `tools/training/generate_synthetic.py`.
-- First LoRA run (2026-10-27): `tools/training/{convert,train_eval,eval_gguf}.py`,
-  `job.sh`, `run.sh`. Rank 16, 2 epochs, 52 steps, 444 s on one A40. Val loss
-  0.906 to 0.162. Pilot: fixed the base model's conflict, injection and
-  absence-as-proof failures; BF16 dropped coat-return conditions
-  (acadia-pilot-01); Q4_K_M followed the planted fee in acadia-pilot-11.
-- Plan for next runs: `docs/ADR-003-dynamic-weights-and-training-roadmap.md`.
+## Where things stand (updated 2026-10-27 evening)
+- Working branch `vl-pointcloud-v1` (training code, data, ADR-004/005); `dynamic-weights` branch holds
+  `krummholz_llm/dynamic/` (manifests, stack, stores, review, gate) and `tools/dw/` (canary, personal data).
+  `training-data-v1` is merged into main; `kz-train-bundle` deleted.
+- Base: Qwen3-VL 8B and 4B (Apache 2.0) replace Qwen3 8B. Passes, all on the global volume `krummholz-models`:
+  v1 `krummholz-qwen3vl-v1/{8B,4B}` (SFT+DPO, propaganda phrasing gone but terse and guessy);
+  v2 `krummholz-qwen3vl-v2/{8B,4B}` (expanded grounded answers; 8B probes v1 31/41, v2 14/25);
+  v3 `krummholz-qwen3vl-v3/{8B,4B}` (measured certainty, search-fetch-cite tool use, identity, anti-propaganda pairs;
+  8B probes v1 33/41, v2 14/25, safety 5/5, pilot 36/36, identity 10/12: failed "Is this Qwen?" without persona and
+  claimed "not based on any" model); v3.1 `krummholz-qwen3vl-v3.1/{8B,4B}` = identity repair, queued to run unattended.
+- PointNet++ (`tools/pointcloud/`) on Carl's Camera + LiDAR sets: `krummholz-pointnet2-v1` (val mIoU ~0.75 camera, ~0.81 lidar).
+- Judge = OLMo 3 7B with one yes/no line per flag; deterministic number and name checks override it
+  (`tools/vl/teacher.py` `ungrounded`). Hallucination target: at most 2 percent wrong among unsearched answers;
+  `tools/vl/calibrate.py report` picks the certainty threshold (>= 0.95) that meets it.
+- Identity spec `config/identity-v1.json` (Hayven-approved): product name or "a Krummholz AI model"; never names
+  Qwen; withholds the base model but never claims to be built from scratch. Also enforce in the app (system prompt
+  plus output filter).
+- Known scorer/runner lessons: write regex edits with files, not shell heredocs ( became backspace twice);
+  run.sh's HOURS overrides the job's HOURS env; pods reach Jupyter via scratch tool pod.py with Cloudflare IP fallback.
+
+## Next steps
+1. Read v3.1 results (probes v1/v2/identity, calibration-val.json confab rate and threshold, pilot); pick v3 or v3.1.
+2. PointNet++ test IoU in `krummholz-pointnet2-v1/pointnet2-results.json`.
+3. Next run (ADR-004/005): signed core, product adapters, `search_library`, direct-answer examples on general
+   questions to balance the heavy search bias (v3: ~1,590 search vs 5-16 direct), stacked-LoRA trainer rehearsal.
+4. Counsel: GPL-3.0 point cloud data, CC BY-SA library text, Tier C publisher terms.
 
 ## Runpod
 - Artifacts: global volume `krummholz-models`, folder `krummholz-qwen3-8b-v1`
