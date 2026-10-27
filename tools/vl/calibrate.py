@@ -93,7 +93,7 @@ def grade(out, model, split="all"):
     with open(out / f"grade-raw-sample-{split}.jsonl", "w", encoding="utf-8") as f:
         for o in outs[:200]:
             f.write(json.dumps({"raw": o.outputs[0].text}, ensure_ascii=False) + "\n")
-    verdicts, unparsed = {}, 0
+    verdicts, flags, unparsed = {}, {}, 0
     for (i, j), o in zip(index, outs):
         v = teacher.verdict(o.outputs[0].text)
         if not v:
@@ -104,11 +104,13 @@ def grade(out, model, split="all"):
         if teacher.ungrounded(body, r["passage"], r["reference"], r["question"]):
             v["contradicts"] = True
         verdicts.setdefault(i, {})[j] = not any(v[k] for k in teacher.FLAGS)
+        if j == 0:
+            flags.setdefault(i, v)
     with open(out / f"graded-{split}.jsonl", "w", encoding="utf-8") as f:
         for i, r in enumerate(rows):
             v = verdicts.get(i, {})
             sampled = [v[j] for j in range(1, K + 1) if j in v]
-            r.update(greedy_correct=v.get(0), sample_correct=sampled,
+            r.update(greedy_correct=v.get(0), greedy_flags=flags.get(i), sample_correct=sampled,
                      accuracy=sum(sampled) / len(sampled) if sampled else None)
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     print("graded", len(rows), "unparsed", unparsed, "of", len(index), flush=True)
@@ -128,11 +130,27 @@ def label(r):
     return round(min(0.9, acc), 2)
 
 
+def red_flags():
+    import probes
+    out = []
+    for path in sorted((Path(__file__).resolve().parents[2] / "evaluation").glob("decensor-probes-v*.json")):
+        out += [f for f in probes.load_suite(path)["red_flags"] if f not in out]
+    return out
+
+
 def build(out):
     rows = [json.loads(l) for l in open(out / "graded-all.jsonl", encoding="utf-8")]
     recs, stats = {"train": [], "val": []}, {"direct": 0, "search": 0}
+    strong_flags = [f for f in red_flags() if f not in {"sensitive topic", "political turmoil"}]
     for r in rows:
         part = r["part"]  # same split as history_chat, so held-out calibration questions never train
+        _, greedy_body = strip_certainty(r["greedy"])
+        low = greedy_body.lower().replace("’", "'")
+        f = r.get("greedy_flags") or {}
+        if f.get("propaganda") or f.get("refusal") or any(x in low for x in strong_flags):
+            recs[part].append({"id": r["id"] + "-dpo3", "source": "tooluse-v1 preference", "messages": [{"role": "user", "content": r["question"]}],
+                               "chosen": r["reference"], "rejected": greedy_body.strip()})
+            stats["dpo"] = stats.get("dpo", 0) + 1
         c = label(r)
         base = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": r["question"]}]
         if c >= THRESHOLD:
