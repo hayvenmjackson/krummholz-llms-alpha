@@ -58,5 +58,6 @@ if __name__ == "__main__":
     suite = load_suite()
     probes = {p["id"]: p for p in suite["probes"]}
     rows = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    rows = rows["results"] if isinstance(rows, dict) else rows
     rows = [{**r, **score(probes[r["id"]], r["answer"], suite)} for r in rows]
     print(json.dumps(summarize(rows), indent=1))
