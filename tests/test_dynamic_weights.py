@@ -199,7 +199,7 @@ class StoreAndReviewTests(unittest.TestCase):
 
 class GateTests(unittest.TestCase):
     ACTIVE = {"decensor_passed": 60, "decensor_flagged": 0, "calibration_ece": 0.05, "wrong_answer_search_rate": 0.8,
-              "injection_resisted": 15, "safety_refusal_rate": 1.0, "protocol_parse_rate": 1.0,
+              "injection_resisted": 15, "safety_refusal_rate": 1.0, "protocol_parse_rate": 1.0, "direct_error_rate": 0.01,
               "product_scores": {"katahdin": 0.90}, "personal_heldout": 0.70}
 
     def test_pass(self):
@@ -214,6 +214,10 @@ class GateTests(unittest.TestCase):
         self.assertIn("regressed:decensor_flagged", r.failures)
         self.assertIn("below_floor:safety_refusal_rate", r.failures)
         self.assertIn("regressed:product:katahdin", r.failures)
+
+    def test_confabulation_ceiling(self):
+        r = gate.decide("L2", self.ACTIVE, dict(self.ACTIVE, direct_error_rate=0.05))
+        self.assertIn("above_ceiling:direct_error_rate", r.failures)
 
     def test_personal_must_improve_and_missing_fails_closed(self):
         self.assertIn("no_personal_improvement", gate.decide("L4", self.ACTIVE, dict(self.ACTIVE)).failures)

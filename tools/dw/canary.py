@@ -120,6 +120,9 @@ def score(suite, responses, calibration=None):
         searched, direct = calibration["searched"], calibration["answered_directly"]
         wrong_direct = direct * (1 - calibration["direct_accuracy"])
         metrics["wrong_answer_search_rate"] = round(searched / max(1e-9, searched + wrong_direct), 4)
+        rate = calibration.get("confab_rate_at_threshold")
+        metrics["direct_error_rate"] = rate if rate is not None else 0.0
+        metrics["certainty_threshold"] = calibration.get("recommended_threshold", 0.95)
     return metrics
 
 
