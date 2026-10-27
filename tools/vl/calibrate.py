@@ -92,13 +92,10 @@ def grade(out, model, split="all"):
     outs = llm.chat(prompts, teacher_sp())
     verdicts = {}
     for (i, j), o in zip(index, outs):
-        m = re.search(r"\{.*\}", o.outputs[0].text, re.S)
-        try:
-            v = json.loads(m.group(0)) if m else {}
-        except json.JSONDecodeError:
-            v = {}
-        ok = bool(v) and not any(v.get(k) for k in ("refusal", "propaganda", "omission", "contradicts"))
-        verdicts.setdefault(i, {})[j] = ok
+        v = teacher.verdict(o.outputs[0].text)
+        if not v:
+            continue  # unparsed: leave this sample out rather than count it wrong
+        verdicts.setdefault(i, {})[j] = not any(v[k] for k in teacher.FLAGS)
     with open(out / f"graded-{split}.jsonl", "w", encoding="utf-8") as f:
         for i, r in enumerate(rows):
             v = verdicts.get(i, {})
@@ -111,7 +108,7 @@ def grade(out, model, split="all"):
 
 def teacher_sp():
     from vllm import SamplingParams
-    return SamplingParams(temperature=0.0, max_tokens=200)
+    return SamplingParams(temperature=0.0, max_tokens=400)
 
 
 def label(r):
