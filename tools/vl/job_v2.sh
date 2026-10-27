@@ -32,8 +32,12 @@ if [ ! -f "$H/history_chat.train.jsonl" ]; then
   $T teach --out "$H" --model "$TEACHER" || { echo TEACH_FAIL; exit 1; }
   echo TEACH_OK
 fi
+if [ ! -f "$H/expand-report.json" ] && [ "${TEACH_ONLY:-0}" = "1" -o "${EXPANDER:-0}" = "1" ]; then
+  $T expand --out "$H" --model "$TEACHER" || { echo EXPAND_FAIL; exit 1; }
+  echo EXPAND_OK
+fi
 [ "${TEACH_ONLY:-0}" = "1" ] && { echo JOB_DONE; exit 0; }
-until [ -f "$H/history_chat.train.jsonl" ]; do sleep 60; done
+until [ -f "$H/expand-report.json" ]; do sleep 60; done
 
 [ -x llama.cpp/build/bin/llama-quantize ] || {
   git clone -q --depth 1 --branch b11669 https://github.com/ggml-org/llama.cpp 2>/dev/null || git clone -q --depth 1 https://github.com/ggml-org/llama.cpp
@@ -50,6 +54,8 @@ for S in $SIZES; do
   mkdir -p "$D" "$F"
   [ -f "$BASE/config.json" ] || python3 -c "from huggingface_hub import snapshot_download as s; s('$M', local_dir='$BASE')" || { echo WEIGHTS_FAIL $S; continue; }
   cp "$H"/history_qa.* "$H"/history_chat.* "$D"/
+  # general long-form replay from v1 keeps answers from collapsing to one sentence
+  cp "$V1/inputs-8B/replay.train.jsonl" "$D/replay.train.jsonl" 2>/dev/null || echo NO_REPLAY
   $T base --out "$D" --model "$BASE" --adapter "$A1" --tag v1 || { echo ONPOLICY_FAIL $S; continue; }
   $T judge --out "$D" --model "$TEACHER" || { echo JUDGE_FAIL $S; continue; }
   cp "$D"/probes-v*-v1.json "$D"/judge-report.json "$F"/

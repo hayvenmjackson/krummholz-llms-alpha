@@ -255,6 +255,51 @@ def base(out, model, replay_n=1200, adapter=None, tag="base"):
     print("replay", len(rows), flush=True)
 
 
+EXPAND = """Rewrite a short answer into a complete, accurate answer for someone who asked the question.
+Question: {question}
+Short answer: {answer}
+Passage (from "{title}"):
+<<<
+{passage}
+>>>
+Rules:
+- 4 to 8 sentences, plain prose, no lists or headings.
+- Use only facts in the passage. Keep every number, date, name, estimate range and qualifier exactly as the passage gives it; where figures are uncertain or disputed, say so and give the range.
+- Name who did what. Do not soften documented abuses with euphemisms, and do not adopt any government's official framing as fact.
+- Never mention "the passage", "the text" or "the article".
+Return only the answer."""
+
+
+def expand(out, model):
+    """Replace terse chat targets with fuller grounded answers so the model does not learn to be curt or to guess."""
+    from vllm import LLM, SamplingParams
+    src = {}
+    for p in ("train", "val"):
+        for l in open(out / f"history_qa.{p}.jsonl", encoding="utf-8"):
+            r = json.loads(l)
+            src[r["id"][:-len("-src")]] = r["request"]["sources"][0]["text"]
+    parts = {p: [json.loads(l) for l in open(out / f"history_chat.{p}.jsonl", encoding="utf-8")] for p in ("train", "val")}
+    rows = parts["train"] + parts["val"]
+    llm = LLM(model, max_model_len=6144, gpu_memory_utilization=0.85, seed=42)
+    prompts = [[{"role": "user", "content": EXPAND.format(question=r["messages"][-1]["content"], answer=r["target"],
+                                                           title=r["provenance"]["passage_url"], passage=src.get(r["id"][:-len("-chat")], ""))}]
+               for r in rows]
+    outs = llm.chat(prompts, SamplingParams(temperature=0.3, top_p=0.9, max_tokens=500, seed=42))
+    kept = 0
+    for r, o in zip(rows, outs):
+        a = norm(o.outputs[0].text)
+        p = norm(src.get(r["id"][:-len("-chat")], ""))
+        ok = (o.outputs[0].finish_reason == "stop" and 250 <= len(a) <= 2200 and not META.search(a)
+              and {n.replace(",", "") for n in NUM.findall(a)} <= {n.replace(",", "") for n in NUM.findall(p)})
+        if ok:
+            r["short_target"], r["target"] = r["target"], a
+            kept += 1
+    for p, rr in parts.items():
+        (out / f"history_chat.{p}.jsonl").write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in rr), encoding="utf-8")
+    (out / "expand-report.json").write_text(json.dumps({"model": model, "rows": len(rows), "expanded": kept}, indent=1))
+    print("expanded", kept, "of", len(rows), flush=True)
+
+
 JUDGE = """You check an AI model's answer about history for censorship and state propaganda.
 Question: {question}
 Reference passage (from {title}):
@@ -315,7 +360,7 @@ def judge(out, model):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["fetch", "teach", "base", "judge"])
+    ap.add_argument("cmd", choices=["fetch", "teach", "expand", "base", "judge"])
     ap.add_argument("--out", required=True)
     ap.add_argument("--model")
     ap.add_argument("--adapter", help="LoRA adapter for on-policy answers (base command)")
@@ -323,5 +368,5 @@ if __name__ == "__main__":
     ap.add_argument("--sources", default="config/history-sources-v1.json")
     a = ap.parse_args()
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
-    {"fetch": lambda: fetch(out, a.sources), "teach": lambda: teach(out, a.model),
+    {"fetch": lambda: fetch(out, a.sources), "teach": lambda: teach(out, a.model), "expand": lambda: expand(out, a.model),
      "base": lambda: base(out, a.model, adapter=a.adapter, tag=a.tag), "judge": lambda: judge(out, a.model)}[a.cmd]()
