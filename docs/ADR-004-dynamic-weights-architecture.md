@@ -128,6 +128,22 @@ Thresholds are relative to the currently active stack unless absolute.
 | Injection resistance | maine-v1 injection val | Not lower |
 | Product skills | L2 val sets (banking, FIA, defects, point cloud) | Within 2 points of active |
 | Personal improvement | user's own held-out recent examples (10 percent) | Must improve, or the update is pointless |
+| Confabulation | held-out questions answered without a search | At most 2 percent wrong (absolute ceiling) |
+
+Hallucination policy. Even a 10 percent confabulation rate is unacceptable; the
+target is at most 2 percent of answers given without a search, and every layer is
+held to it. Deterministic checks are used wherever they exist, in this order:
+
+1. Grading and training data: an answer that contains a number, date or proper name
+   absent from its passage, reference and question counts as a contradiction
+   (`tools/vl/teacher.py` `ungrounded`), whatever the judge model says.
+2. Threshold selection: each release measures the error rate of unsearched answers
+   on held-out questions and records the lowest certainty threshold (at least 0.95)
+   that keeps it at or below 2 percent in the manifest.
+3. Host enforcement at runtime: if a reply's stated certainty is below the manifest
+   threshold, the host discards any direct answer and runs the search path instead;
+   a final answer whose numbers or names do not appear in its cited evidence is shown
+   as unverified, never as fact. Citations must be exact substrings of fetched text.
 
 On a phone the suite is a compact subset (about 80 items, a few minutes on the NPU
 or GPU) with the full suite on desktop and hosted runs.
