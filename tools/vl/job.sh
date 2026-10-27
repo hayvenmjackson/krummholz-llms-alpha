@@ -10,6 +10,7 @@ unset HF_TOKEN HUGGING_FACE_HUB_TOKEN
 export PYTHONUNBUFFERED=1 HF_HUB_DISABLE_IMPLICIT_TOKEN=1 HF_HOME=/root/hf
 pipi() { python3 -m pip install -q "$@" || python3 -m pip install -q --break-system-packages "$@"; }
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader; df -h /root /workspace | tail -2
+python3 -m pip install -q --break-system-packages --ignore-installed PyJWT blinker 2>/dev/null
 pipi vllm peft datasets || { echo PIP_FAIL; exit 1; }
 python3 -c "import torch, transformers, vllm, peft; from transformers import Qwen3VLForConditionalGeneration; print('torch', torch.__version__, 'transformers', transformers.__version__, 'vllm', vllm.__version__, 'peft', peft.__version__)" || { echo IMPORT_FAIL; exit 1; }
 git clone -q --branch "$BRANCH" https://github.com/hayvenmjackson/krummholz-llms-alpha "$REPO" && git -C "$REPO" log -1 --format='repo %h %s' | tee "$FINAL/repo-commit.txt"
