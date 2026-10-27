@@ -186,7 +186,7 @@ is proven for a 4B VL model on this hardware, so it is a separate research track
 1. **L1 is merged into a signed Krummholz core.** Every shipped base is the core,
    never the publisher's checkpoint.
 2. **On-device personal training is funded now** as a research track running in
-   parallel with desktop and hosted training (section 12). Desktop and hosted
+   parallel with desktop and hosted training (section 11). Desktop and hosted
    training remain the launch path until the track meets its exit criteria.
 3. **Hosted per-user adapters are offered at launch**, opt-in, as described in
    section 13.
@@ -195,9 +195,9 @@ is proven for a 4B VL model on this hardware, so it is a separate research track
    still passes the full gate. A per-cycle cap on accepted items is set from the
    synthetic-user experiments (section 9, item 3).
 5. **Organization adapters (L3) are in scope for the January 2, 2027 launch**
-   (section 14).
+   (section 13).
 
-## 12. On-device training research track
+## 11. On-device training research track
 
 Question: can a Samsung S26 train a useful rank-4 L4 adapter for the 4B core while
 charging, within thermal, battery and time limits, producing the same gate results
@@ -215,7 +215,7 @@ as desktop training on the same examples?
 - Until then, phones sync encrypted examples to the user's own desktop or to an
   opt-in hosted job, and receive the signed adapter back.
 
-## 13. Hosted per-user adapters (launch)
+## 12. Hosted per-user adapters (launch)
 
 - Strictly opt-in, per profile, revocable at any time with deletion of the user's
   examples, memory copies and adapters from hosted storage.
@@ -229,7 +229,52 @@ as desktop training on the same examples?
 - Data sent for hosted training is only the user's accepted `examples.jsonl`
   entries; memory facts stay local unless the user also enables hosted memory.
 
-## 14. Organization adapters (launch)
+## 13. Organization adapters (launch)
+
+- An organization (for example a client like Q-MoB) approves the examples that
+  train its L3 adapter; individual members' personal adapters sit on top.
+- L3 updates follow the same gate plus an organization-specific canary set the
+  client signs off on (their policies, refund rules, tone).
+- Precedence at answer time follows ADR-003 basis ranking: fresh tool result, then
+  dated organization document, then user statement, then learned memory. An L3
+  adapter shapes behavior; organization facts still live in documents or an
+  organization memory store and are cited.
+- Members cannot edit L3; organization admins approve L3 changes. Personal learning
+  that conflicts with L3 policy is flagged in review rather than silently trained.
+
+## 11. On-device training research track
+
+Question: can a Samsung S26 train a useful rank-4 L4 adapter for the 4B core while
+charging, within thermal, battery and time limits, producing the same gate results
+as desktop training on the same examples?
+
+- Candidates to evaluate: llama.cpp's training path, ExecuTorch on-device training,
+  ONNX Runtime training, and a minimal custom LoRA trainer over a quantized forward
+  pass with BF16 adapter weights. Pick by measured results, not claims.
+- Experiments: tokens per second for forward and backward passes, peak memory,
+  temperature and battery over a 30-minute session, and adapter quality versus a
+  desktop-trained adapter on identical examples (gate metrics plus held-out personal set).
+- Exit criteria: a nightly update of up to 200 examples finishes within 45 minutes
+  while charging, stays under the device's thermal throttle point, and passes the
+  same gate with personal-improvement within 1 point of the desktop adapter.
+- Until then, phones sync encrypted examples to the user's own desktop or to an
+  opt-in hosted job, and receive the signed adapter back.
+
+## 12. Hosted per-user adapters (launch)
+
+- Strictly opt-in, per profile, revocable at any time with deletion of the user's
+  examples, memory copies and adapters from hosted storage.
+- Serving: one core per size with many L2/L3/L4 LoRAs (vLLM multi-LoRA); adapters
+  are loaded by signed manifest only, never by a path supplied in a request.
+- Isolation: per-user encrypted storage; training jobs run in isolated workers with
+  no access to other users' data; no hosted model learns from users who have not
+  opted in.
+- The same gate runs server-side before a hosted adapter activates, and the result
+  is shown to the user the same way as on device.
+- Data sent for hosted training is only the user's accepted `examples.jsonl`
+  entries; memory facts stay local unless the user also enables hosted memory.
+
+## 13. Organization adapters (launch)
 
 - An organization (for example a client like Q-MoB) approves the examples that
   train its L3 adapter; individual members' personal adapters sit on top.
@@ -252,3 +297,5 @@ as desktop training on the same examples?
   whether point-cloud examples live in L1/L2 or ship as a separately licensed adapter.
 - Memory retrieval quality on device bounds how much personal value arrives before
   any adapter training.
+
+
