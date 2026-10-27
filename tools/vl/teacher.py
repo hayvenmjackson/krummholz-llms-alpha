@@ -141,6 +141,8 @@ def verify(item, passage, probe_grams):
     item["quotes"] = fixed
     if not {n.replace(",", "") for n in NUM.findall(a)} <= {n.replace(",", "") for n in NUM.findall(p)}:
         return "number"
+    if unsupported_names(a, p, q):
+        return "name"
     g = trigrams(q)
     if any(g and len(g & pg) / max(1, len(g | pg)) > 0.4 for pg in probe_grams):
         return "probe_overlap"
@@ -290,7 +292,7 @@ def expand(out, model):
         a = norm(o.outputs[0].text)
         p = norm(src.get(r["id"][:-len("-chat")], ""))
         ok = (o.outputs[0].finish_reason == "stop" and 250 <= len(a) <= 2200 and not META.search(a)
-              and {n.replace(",", "") for n in NUM.findall(a)} <= {n.replace(",", "") for n in NUM.findall(p)})
+              and not ungrounded(a, p, r["messages"][-1]["content"]))
         if ok:
             r["short_target"], r["target"] = r["target"], a
             kept += 1
@@ -356,6 +358,32 @@ def unsupported_numbers(answer, *support):
     return sorted({n.replace(",", "") for n in NUM.findall(answer or "")} - have)
 
 
+CAPWORD = re.compile(r"(?<![.!?]\s)(?<!^)\b([A-Z][a-z'\u2019]+(?:[- ][A-Z][a-z'\u2019]+)*)")
+COMMON_CAPS = {"The", "A", "An", "In", "On", "At", "It", "This", "That", "These", "Those", "He", "She", "They",
+               "His", "Her", "Their", "However", "After", "Before", "During", "While", "Although", "According",
+               "Many", "Some", "Most", "Several", "Yes", "No", "As", "By", "For", "From", "Of", "To", "With",
+               "When", "Where", "Which", "Who", "What", "Why", "How", "There", "Its", "Since", "Until", "Also"}
+
+
+def unsupported_names(answer, *support):
+    """Capitalized names in an answer (not sentence-initial) with no match in the supporting
+    texts. Matching is by 4-letter stem so China/Chinese or Tibet/Tibetan do not trip it."""
+    stems = set()
+    for t in support:
+        stems |= {w.lower()[:4] for w in re.findall(r"[A-Za-z][A-Za-z'\u2019]+", t or "")}
+    missing = set()
+    for m in CAPWORD.finditer(answer or ""):
+        for w in re.split(r"[- ]", m.group(1)):
+            if len(w) >= 3 and w not in COMMON_CAPS and w.lower()[:4] not in stems:
+                missing.add(w)
+    return sorted(missing)
+
+
+def ungrounded(answer, *support):
+    """Deterministic grounding check used everywhere a model answer is graded."""
+    return unsupported_numbers(answer, *support) + unsupported_names(answer, *support)
+
+
 def judge(out, model):
     """OLMo 3 grades the tuned model's on-policy answers; flagged answers become DPO rejects."""
     from vllm import LLM, SamplingParams
@@ -384,7 +412,7 @@ def judge(out, model):
         counts["keyword"] += kw
         for k in ("refusal", "propaganda", "omission", "contradicts"):
             counts[k] += bool(v.get(k))
-        if v and unsupported_numbers(r["model_answer"], src.get(r["id"][:-len("-chat")], ""), r["target"]):
+        if v and ungrounded(r["model_answer"], src.get(r["id"][:-len("-chat")], ""), r["target"], r["messages"][-1]["content"]):
             v["contradicts"] = True
         if kw or v.get("refusal") or v.get("propaganda") or v.get("contradicts"):
             part = "val" if zlib.crc32(r["id"].encode()) % 10 == 0 else "train"
