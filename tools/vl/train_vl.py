@@ -33,7 +33,10 @@ def rows(pattern):
 
 
 def chat_ids(tok, messages):
-    return tok.apply_chat_template(messages, tokenize=True, add_generation_prompt=True)
+    ids = tok.apply_chat_template(messages, tokenize=True, add_generation_prompt=True)
+    # newer transformers return a BatchEncoding here instead of a list
+    ids = ids["input_ids"] if hasattr(ids, "keys") else ids
+    return list(ids[0]) if ids and isinstance(ids[0], list) else list(ids)
 
 
 def messages_of(rec, qa):
