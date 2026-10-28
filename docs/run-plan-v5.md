@@ -4,6 +4,11 @@ Date: October 28, 2026 (draft written while pass 4b trains). Starts after the v4
 top-up. Direction from Hayven: focus on dynamic weights, cut hallucination hard (Taiwan and anything
 political first), and hard-code the known public embarrassments so the models are not panned at launch.
 
+Scope (decided October 28, 2026): v5 trains three bases on the new Qwen3.5 architecture family, not
+pilots only: Qwen3.8-27B (dense) and Qwen3.6-35B-A3B (MoE) as Atlantic candidates, and Qwen3.5-4B for
+Acadia. Katahdin's base is chosen from the results (35B-A3B, quantized 27B, or Qwen3.5-9B). Release
+cadence for later bases: `docs/ADR-006-release-cadence.md`.
+
 ## 1. Gotcha hardening (deterministic first, model second)
 
 Small models lack the parameters for exact symbol work, so these never depend on model memory.
