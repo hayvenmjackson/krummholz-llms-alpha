@@ -33,21 +33,30 @@ python3 -c "from transformers import AutoConfig; c = AutoConfig.from_pretrained(
 
 # 0. smoke test: vLLM chat with the tool prompt, thinking off
 if [ ! -f "$FINAL/smoke.json" ]; then
-  python3 - "$VBASE" "$FINAL/smoke.json" <<'EOF' || { echo SMOKE_FAIL; exit 1; }
+  # a real file with a main guard: newer vLLM spawns engine workers that re-import __main__ (stdin fails)
+  mkdir -p /root/kz5; cat > /root/kz5/smoke.py <<'EOF'
 import json, sys
 sys.path.insert(0, "/root/krummholz-llm/tools/vl")
-import calibrate  # patches vLLM chat (thinking off) and quantization via teacher
-from vllm import LLM, SamplingParams
-llm = LLM(sys.argv[1], max_model_len=4096, gpu_memory_utilization=0.85, seed=42, limit_mm_per_prompt={"image": 0, "video": 0})
-qs = ["How many r's are in strawberry?", "Is Taiwan a country?", "Who are you?"]
-outs = llm.chat([[{"role": "system", "content": calibrate.SYSTEM}, {"role": "user", "content": q}] for q in qs],
-                SamplingParams(temperature=0.0, max_tokens=300))
-res = [{"q": q, "a": o.outputs[0].text} for q, o in zip(qs, outs)]
-json.dump(res, open(sys.argv[2], "w"), indent=1, ensure_ascii=False)
-for r in res:
-    print("SMOKE", r["q"], "|", r["a"][:300].replace("\n", " "), flush=True)
-assert not any("<think>" in r["a"] for r in res), "thinking still on"
+
+
+def main():
+    import calibrate  # patches vLLM chat (thinking off) and quantization via teacher
+    from vllm import LLM, SamplingParams
+    llm = LLM(sys.argv[1], max_model_len=4096, gpu_memory_utilization=0.85, seed=42, limit_mm_per_prompt={"image": 0, "video": 0})
+    qs = ["How many r's are in strawberry?", "Is Taiwan a country?", "Who are you?"]
+    outs = llm.chat([[{"role": "system", "content": calibrate.SYSTEM}, {"role": "user", "content": q}] for q in qs],
+                    SamplingParams(temperature=0.0, max_tokens=300))
+    res = [{"q": q, "a": o.outputs[0].text} for q, o in zip(qs, outs)]
+    json.dump(res, open(sys.argv[2], "w"), indent=1, ensure_ascii=False)
+    for r in res:
+        print("SMOKE", r["q"], "|", r["a"][:300].replace("\n", " "), flush=True)
+    assert not any("<think>" in r["a"] for r in res), "thinking still on"
+
+
+if __name__ == "__main__":
+    main()
 EOF
+  python3 /root/kz5/smoke.py "$VBASE" "$FINAL/smoke.json" || { echo SMOKE_FAIL; exit 1; }
   echo SMOKE_OK
 fi
 
