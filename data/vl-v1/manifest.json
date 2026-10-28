@@ -1,0 +1,32 @@
+{
+ "banking": {
+  "train": 1350,
+  "train_sha256": "707fe1ee081a93e35dc2bfe94c38445202182e944c92c96d83df2e649dd0f598",
+  "val": 150,
+  "val_sha256": "1c89ced5e08f761b5d27c3fbdf5f580d8008f0e16ecd276014b69ac7925e84e2"
+ },
+ "defects": {
+  "train": 168,
+  "train_sha256": "a5471b2264992bc77253ae315133cb36a03c0744467a0f3643cb895a6b6c0203",
+  "val": 18,
+  "val_sha256": "ad15d31b536d38a496acc04857c8742f5134c5766a69b301d8f7163836799696"
+ },
+ "fia": {
+  "train": 1350,
+  "train_sha256": "b04a502d115c13a5bd2b4f1d52f8e8b353df47cf4d9c0266196a073fd542da67",
+  "val": 150,
+  "val_sha256": "f22c53b47e6ab754c57fad909998f735aef9f8a15d7b812da6f6ad63f036c7a9"
+ },
+ "maine": {
+  "train": 404,
+  "train_sha256": "577a43ff0f0a179f9408608a0a8b39cdf16400e05a2fbabaaf88f130b0996752",
+  "val": 46,
+  "val_sha256": "feae2fd0d92e3379436cabd450c58744b88a1243fdb1ea6f65b8d29a1fa50f19"
+ },
+ "pointcloud": {
+  "train": 2250,
+  "train_sha256": "078a14672757ccad987029350e68e74f2b013bff56f13640e95e10c116b6b9ad",
+  "val": 225,
+  "val_sha256": "50ee4d4e248e0221e07044c0beb1d51aabd8e643d058ba1be369badf3e958554"
+ }
+}

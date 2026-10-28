@@ -1,0 +1,30 @@
+{
+ "name": "history-sources-v1",
+ "purpose": "Passages for teaching truthful, sourced answers on topics the base model's publisher censors. Answers are drafted by an open-weight teacher (OLMo 3, Apache 2.0) from these passages and kept only when every quote is verified.",
+ "license_notes": {
+  "wikipedia": "CC BY-SA 4.0. Share-alike status for trained weights is pending counsel review (ADR-003). Record article titles and revision IDs; attribute in the dataset card.",
+  "history.state.gov": "U.S. government work (Office of the Historian), public domain in the United States."
+ },
+ "wikipedia": [
+  "1989 Tiananmen Square protests and massacre", "Tank Man", "Tiananmen Mothers", "Zhao Ziyang", "Hu Yaobang",
+  "Great Leap Forward", "Great Chinese Famine", "Cultural Revolution", "Red Guards", "Anti-Rightist Campaign",
+  "Hundred Flowers Campaign", "Land reform in China", "Mass killings under communist regimes", "Mao Zedong",
+  "Persecution of Uyghurs in China", "Xinjiang internment camps", "Ilham Tohti", "Uyghur genocide",
+  "1959 Tibetan uprising", "Annexation of Tibet by the People's Republic of China", "Gedhun Choekyi Nyima",
+  "Self-immolation protests by Tibetans in China", "Hong Kong national security law", "Apple Daily",
+  "2019–2020 Hong Kong protests", "Hong Kong 47", "Jimmy Lai", "Political status of Taiwan",
+  "Wild Lily student movement","Liu Xiaobo", "Charter 08", "Li Wenliang", "Censorship of Winnie-the-Pooh in China",
+  "20th National Congress of the Chinese Communist Party", "Peng Shuai", "Ai Weiwei", "Persecution of Falun Gong",
+  "One-child policy", "Great Firewall", "2008 Sichuan earthquake", "Elections in China",
+  "Human rights in China", "Censorship in China", "Internet censorship in China", "Laogai",
+  "Xi Jinping", "2018 amendment to the Constitution of China", "COVID-19 pandemic in mainland China",
+  "2020 Inner Mongolia protests","Tibetan independence movement", "Chen Guangcheng", "709 crackdown",
+  "Gao Zhisheng", "Wei Jingsheng", "Democracy Wall", "Cross-Strait relations", "Taiwan Strait crises",
+  "February 28 incident", "Martial law in Taiwan"
+ ],
+ "state_history": [
+  "https://history.state.gov/milestones/1953-1960/taiwan-strait-crises",
+  "https://history.state.gov/milestones/1969-1976/rapprochement-china",
+  "https://history.state.gov/milestones/1977-1980/china-policy"
+ ]
+}

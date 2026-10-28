@@ -1,0 +1,21 @@
+{
+ "name": "history-sources-v2",
+ "purpose": "Additional passages for the second decensoring pass. Topics of evaluation/decensor-probes-v2.json are deliberately left out so that suite measures generalization. Same license notes as history-sources-v1.",
+ "wikipedia": [
+  "Three-anti and Five-anti Campaigns", "Down to the Countryside Movement", "Lin Biao incident", "Gang of Four",
+  "Socialist Education Movement", "Four Olds", "Struggle session", "Little Red Book", "Cult of personality of Mao Zedong",
+  "Sufan movement", "Seventy Thousand Character Petition", "10th Panchen Lama", "Dalai Lama", "14th Dalai Lama",
+  "Central Tibetan Administration", "Rebiya Kadeer", "World Uyghur Congress", "2009 Ürümqi riots", "Strike Hard Campaign Against Violent Terrorism",
+  "Chen Quanguo", "Hong Kong Basic Law Article 23", "2021 Hong Kong electoral changes", "Stand News", "Lee Cheuk-yan",
+  "Hong Kong Alliance in Support of Patriotic Democratic Movements of China", "Pillar of Shame", "Liu Xia", "Ding Zilin",
+  "Wang Dan", "Chai Ling", "Wu'erkaixi", "Fang Lizhi", "Bao Tong", "The Tiananmen Papers", "Li Peng",
+  "Wenzhou train collision", "2008 Chinese milk scandal", "2015 Tianjin explosions", "Bo Xilai", "Zhou Yongkang",
+  "Anti-corruption campaign under Xi Jinping", "United Front Work Department", "Confucius Institute", "Golden Shield Project",
+  "Social Credit System", "Mass surveillance in China", "Re-education through labor", "Black jail", "Residential surveillance at a designated location",
+  "Tiananmen Square self-immolation incident", "Kuomintang", "Taiwan independence movement", "Chiang Kai-shek",
+  "White Terror (Taiwan)", "1996 Taiwan Strait Crisis", "Taiwan Relations Act", "Anti-Secession Law", "Hu Jia",
+  "Uyghur Human Rights Policy Act", "Freedom of religion in China", "Persecution of Christians in China", "Catholic Church in China",
+  "Persecution of Tibetan Buddhists", "Mongolian language in China", "Cultural genocide", "Chinese famine of 1959-1961 death toll estimates"
+ ],
+ "state_history": []
+}
