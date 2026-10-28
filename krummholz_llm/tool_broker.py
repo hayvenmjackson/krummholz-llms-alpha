@@ -21,6 +21,9 @@ from urllib.parse import parse_qsl, unquote, urljoin, urlsplit, urlunsplit
 import uuid
 
 VERSION = "krummholz-readonly-tools-v1"
+VERSION_V2 = "krummholz-readonly-tools-v2"  # adds calculate (code, not the model) and the dated Krummholz Library
+WEB_TOOLS = frozenset({"search_public_web", "fetch_public_page"})
+V2_TOOLS = WEB_TOOLS | {"calculate", "search_library", "fetch_library"}
 CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 CREDENTIAL_PARAMETER = re.compile(r"(?:token|apikey|authorization|password|secret|signature|credential)|^(?:key|auth|sig|session|sessionid|code)$", re.I)
 
@@ -188,7 +191,7 @@ class ProcessRunner:
 
 class ToolBroker:
     def __init__(self, scope, *, search_adapter=None, fetch_adapter=None, provider_mode="fixture",
-                 limits=Limits(), runner=None, monotonic=time.monotonic, utc_now=None):
+                 limits=Limits(), runner=None, monotonic=time.monotonic, utc_now=None, library=None):
         limits.validate()
         if not isinstance(scope, PublicScope) or scope.profile not in {"acadia", "katahdin", "atlantic"}:
             raise BrokerError("invalid_host_scope")
@@ -222,6 +225,7 @@ class ToolBroker:
         self.started, self.calls, self.body_bytes = self.clock(), 0, 0
         self.run_id = uuid.uuid4().hex
         self._results, self._evidence, self._events = {}, {}, []
+        self.library, self._library_results, self._library_evidence = library, {}, {}
         self._disabled = False
 
     def _url(self, value):
@@ -283,13 +287,23 @@ class ToolBroker:
         try:
             proposal = strict_json(raw_proposal, 8192)
             keys(proposal, ("version", "name", "arguments"))
-            if proposal["version"] != VERSION:
+            if proposal["version"] not in (VERSION, VERSION_V2):
                 raise BrokerError("unknown_tool_protocol")
             name = text(proposal["name"], 64)
-            if name not in {"search_public_web", "fetch_public_page"}:
+            if name not in (WEB_TOOLS if proposal["version"] == VERSION else V2_TOOLS):
                 raise BrokerError("tool_unavailable")
             arguments = proposal["arguments"]
-            if name == "search_public_web":
+            if name == "calculate":
+                from krummholz_llm import calculate
+                keys(arguments, ("expression",))
+                response = calculate.run({"expression": text(arguments["expression"], calculate.MAX_CHARS)})
+            elif name == "search_library":
+                keys(arguments, ("query",))
+                response = self._search_library(text(arguments["query"], self.limits.max_query_chars))
+            elif name == "fetch_library":
+                keys(arguments, ("result_id",))
+                response = self._fetch_library(text(arguments["result_id"], 100))
+            elif name == "search_public_web":
                 keys(arguments, ("query",))
                 query = text(arguments["query"], self.limits.max_query_chars)
                 if query not in self.scope.allowed_queries:
@@ -308,10 +322,30 @@ class ToolBroker:
                 self._disabled = True
             response = {"status": "denied" if reason in {"tool_unavailable", "public_query_not_authorized"} else "unresolved",
                         "reason": reason, "provider_mode": self.mode, "side_effecting_actions": []}
-        self._events.append({"call": self.calls, "tool": name if name in {"search_public_web", "fetch_public_page"} else "unavailable",
+        self._events.append({"call": self.calls, "tool": name if name in V2_TOOLS else "unavailable",
                              "status": response["status"], "reason": response.get("reason"),
                              "elapsed_seconds": max(0, self.clock() - started)})
         return response
+
+    def _search_library(self, query):
+        if self.library is None:
+            raise BrokerError("library_unavailable")
+        results = []
+        for doc_id, _ in self.library.search(query, k=self.limits.max_results):
+            result_id = f"library-{self.run_id}-{len(self._library_results) + 1}"
+            self._library_results[result_id] = doc_id
+            results.append(self.library.hit(doc_id, result_id))
+        return {"status": "search_results" if results else "no_results", "results": results, "library_as_of": self.library.as_of}
+
+    def _fetch_library(self, result_id):
+        if self.library is None:
+            raise BrokerError("library_unavailable")
+        if result_id not in self._library_results:
+            raise BrokerError("unknown_request_local_result")
+        source_id = f"library/{self.run_id}-{len(self._library_evidence) + 1}"
+        evidence = self.library.evidence(self._library_results[result_id], source_id)
+        self._library_evidence[source_id] = evidence
+        return {"status": "evidence_observed", "evidence": {**evidence, "current_facts": "as_of_library_date"}}
 
     def _search(self, query, started):
         payload = self._operation(self.search_adapter, "search", {"query": query, "max_results": self.limits.max_results}, started)
@@ -412,6 +446,11 @@ class ToolBroker:
                 keys(citation, ("source_id", "quote"))
                 source_id = text(citation["source_id"], 100)
                 quote = text(citation["quote"], 4096, multiline=True)
+                library_text = self._library_evidence.get(source_id, {}).get("text")
+                if library_text is not None:  # dated library release: literal quote check, no live-freshness rule
+                    if quote not in library_text:
+                        raise BrokerError("quote_not_in_observed_source")
+                    continue
                 evidence = self._evidence.get(source_id)
                 if evidence is None:
                     raise BrokerError("unknown_request_local_source")

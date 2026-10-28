@@ -1,0 +1,19 @@
+{
+ "name": "routing-checks-v1",
+ "created": "2026-10-28",
+ "purpose": "Questions whose answers change over time; with the tool system prompt the model must route to a tool (search) instead of answering from memory. Evaluation only.",
+ "checks": [
+  "Who is the current president of Taiwan?",
+  "How many countries recognize Kosovo right now?",
+  "Who is the UN Secretary-General today?",
+  "What is the population of Maine this year?",
+  "Who is the prime minister of the United Kingdom?",
+  "How many UN member states recognize the Republic of China?",
+  "What is the current price of Bitcoin?",
+  "Who won the most recent World Cup?",
+  "Who leads the Polisario Front now?",
+  "What is the latest version of Python?",
+  "Who is the governor of Maine?",
+  "What is the federal funds rate right now?"
+ ]
+}

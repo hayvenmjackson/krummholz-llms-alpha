@@ -40,14 +40,15 @@ def sov_pairs(out, model, adapter, hist):
     from vllm import SamplingParams
     chat = {p: [json.loads(l) for l in open(Path(hist) / f"history_chat.{p}.jsonl", encoding="utf-8")] for p in ("train", "val")}
     rows = [r for r in chat["train"] if not sovereignty.check(r["target"])]
-    status = Path(hist) / "sov_status.train.jsonl"
-    if status.exists():
-        rows += [json.loads(l) for l in open(status, encoding="utf-8")]
+    for name in ("sov_status.train.jsonl", "sov_canon.train.jsonl"):
+        status = Path(hist) / name
+        if status.exists():
+            rows += [json.loads(l) for l in open(status, encoding="utf-8")]
     llm, lora = llm_and_lora(model, adapter)
     msgs = [r["messages"] for r in rows] + [[{"role": "system", "content": calibrate.SYSTEM}] + r["messages"] for r in rows]
     outs = llm.chat(msgs, SamplingParams(temperature=0.0, max_tokens=500), lora_request=lora)
     # occasional slips matter: also sample status questions, where the publisher prior shows up
-    status_idx = [i for i in range(len(msgs)) if rows[i % len(rows)]["id"].startswith("sovstatus-")]
+    status_idx = [i for i in range(len(msgs)) if rows[i % len(rows)]["id"].startswith(("sovstatus-", "sovcanon-"))]
     sampled = llm.chat([msgs[i] for i in status_idx], SamplingParams(n=4, temperature=0.9, top_p=0.95, max_tokens=500, seed=3),
                        lora_request=lora) if status_idx else []
     candidates = [(i, 0, o.outputs[0].text.strip()) for i, o in enumerate(outs)]
