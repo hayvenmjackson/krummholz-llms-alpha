@@ -109,7 +109,9 @@ EOF
 fi
 cp "$D"/*-report.json "$FINAL"/ 2>/dev/null
 
-# 2. train from the base
+# 2. train from the base (container disk is 200 GB: drop the vLLM-only copy first)
+[ "$VBASE" != "$BASE" ] && rm -rf "$VBASE"
+cp "$BASE/LICENSE" "$FINAL/LICENSE-base.txt" 2>/dev/null
 if [ ! -f "$FINAL/adapter/adapter_config.json" ]; then
   python3 "$REPO/tools/vl/train_vl.py" --base "$BASE" --data "$REPO/data/vl-v1" "$D" --out "$O" --lr 1e-4 --maine-repeat 1 --max-len "$MAXLEN" \
     || { echo TRAIN_FAIL; exit 1; }
@@ -124,6 +126,7 @@ if [ -d "$O/merged" ]; then
     && $C report --out "$E" --split val && cp "$E/calibration-val.json" "$FINAL"/ || echo CALIBRATION_EVAL_FAIL
   $Q calc_eval --out "$E" --model "$O/merged" --heldout "$D/calc-heldout.json_" && cp "$E/calc-eval.json" "$FINAL"/ || echo CALC_EVAL_FAIL
   $Q route_eval --out "$E" --model "$O/merged" --hist "$H2" && cp "$E/route-eval.json" "$FINAL"/ || echo ROUTE_EVAL_FAIL
+  rm -rf /root/hf/hub/models--allenai--Olmo* "$BASE"  # evals done; GGUF needs only the merged model
   L=$W/llama.cpp
   if [ ! -x $L/build/bin/llama-quantize ]; then
     git clone -q --depth 1 https://github.com/ggml-org/llama.cpp $L; git -C $L rev-parse HEAD > "$FINAL/llama-cpp-commit.txt"
@@ -134,10 +137,14 @@ if [ -d "$O/merged" ]; then
   N=krummholz-$NAME-v5
   python3 $L/convert_hf_to_gguf.py "$O/merged" --outtype bf16 --outfile "$O/$N-bf16.gguf" || echo CONVERT_FAIL
   python3 $L/convert_hf_to_gguf.py "$O/merged" --mmproj --outtype f16 --outfile "$O/mmproj-$N-f16.gguf" || echo MMPROJ_FAIL
-  for q in Q4_K_M Q5_K_M; do [ -f "$O/$N-bf16.gguf" ] && $L/build/bin/llama-quantize "$O/$N-bf16.gguf" "$O/$N-$q.gguf" $q >/dev/null && echo QUANT_OK $q; done
-  # bf16 GGUF only for small models; the volume keeps the adapter for larger ones
-  [ "$(stat -c %s "$O/$N-bf16.gguf" 2>/dev/null || echo 0)" -gt 20000000000 ] && rm -f "$O/$N-bf16.gguf"
-  cp "$BASE/LICENSE" "$FINAL/LICENSE-base.txt" 2>/dev/null
-  rm -rf "$O/merged"; (cd "$O" && sha256sum *.gguf > SHA256SUMS-gguf); cp "$O"/*.gguf "$O/SHA256SUMS-gguf" "$FINAL"/ && echo COPY_OK
+  rm -rf "$O/merged"
+  cp "$O/mmproj-$N-f16.gguf" "$FINAL"/ 2>/dev/null
+  # one quant at a time, copied to the volume and deleted, so the disk never holds more than bf16 + one quant
+  for q in Q4_K_M Q5_K_M; do
+    [ -f "$O/$N-bf16.gguf" ] && $L/build/bin/llama-quantize "$O/$N-bf16.gguf" "$O/$N-$q.gguf" $q >/dev/null && echo QUANT_OK $q       && (cd "$O" && sha256sum "$N-$q.gguf" >> "$FINAL/SHA256SUMS-gguf") && cp "$O/$N-$q.gguf" "$FINAL"/ && rm -f "$O/$N-$q.gguf"
+  done
+  # bf16 GGUF kept only for small models; larger ones keep the adapter
+  [ "$(stat -c %s "$O/$N-bf16.gguf" 2>/dev/null || echo 0)" -lt 20000000000 ] && cp "$O/$N-bf16.gguf" "$FINAL"/ 2>/dev/null
+  rm -f "$O/$N-bf16.gguf"; echo COPY_OK
 fi
 echo V5_DONE $NAME
