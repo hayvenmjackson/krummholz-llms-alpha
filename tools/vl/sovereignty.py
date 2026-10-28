@@ -24,6 +24,14 @@ ATTRIBUTION = re.compile(r"\b(?:claims?|claimed|considers?|considered|asserts?|a
                          r"official line|argues?|argued|holds that|deems?|calls?|called|in (?:beijing|moscow|belgrade|rabat)'s view)\b")
 UN_FALSE = re.compile(r"(?<!not )(?<!never )\b(?:recogni[sz]ed|acknowledged|confirmed|determined|decided) by the (?:united nations|un|international community)\b|"
                       r"\b(?:the )?(?:united nations|un) (?:recogni[sz]es|recogni[sz]ed|has recogni[sz]ed) (?:taiwan|it) as\b")
+# False or outdated facts seen in v4a answers; checked in every clause, attribution does not excuse them.
+FALSE_FACTS = [
+    ("false_roc_recognition", r"\b(?:most|the majority of|many of the) (?:un member states|member states|countries|nations|states)"
+                              r"(?: of the (?:un|united nations))? (?:formally |officially |diplomatically )?recogni[sz]e (?:taiwan|the roc|the republic of china)\b"),
+    ("false_kosovo_recognition", r"\bmost (?:countries|states|nations|un member states)\b[^.;]{0,30}\b(?:do not|don't|have not|haven't|never) recogni[sz]ed? kosovo\b"),
+    ("false_un_polisario_admin", r"\b(?:united nations|un)\b[^.;]{0,60}\badminist\w* by the polisario\b|\badminist\w* by the polisario\b[^.;]{0,60}\b(?:united nations|un)\b"),
+    ("stale_taiwan_president", r"\btsai ing-wen (?:is|remains|serves as) (?:the )?(?:current |sitting )?president\b|\bcurrent president (?:of taiwan )?is tsai\b"),
+]
 SENT = re.compile(r"[^.!?\n]+[.!?]?")
 CLAUSE = re.compile(r"[;:]|,\s*(?:and|but|while|whereas|although|though)\s|\s(?:but|whereas)\s")
 
@@ -48,6 +56,9 @@ def check(answer):
             for m in re.finditer(pat, c):
                 if not ATTRIBUTION.search(c[:m.start()]):
                     out.add(name)
+        for name, pat in FALSE_FACTS:
+            if re.search(pat, c) and not re.search(r"\b(?:not true|false|incorrect|myth|misconception)\b", c):
+                out.add(name)
         if about_taiwan and re.search(r"part of china|province|chinese territory|part of the people's republic", sent) and UN_FALSE.search(sent):
             out.add("false_un_recognition")
     return sorted(out)
