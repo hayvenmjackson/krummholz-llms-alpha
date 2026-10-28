@@ -53,7 +53,9 @@ for S in $SIZES; do
   [ -f "$A/adapter_config.json" ] || { echo "NO_INIT_ADAPTER $S"; continue; }
   echo "INIT $S $A"; mkdir -p "$D" "$F"
   [ -f "$BASE/config.json" ] || python3 -c "from huggingface_hub import snapshot_download as s; s('Qwen/Qwen3-VL-$S-Instruct', local_dir='$BASE')" || { echo WEIGHTS_FAIL $S; continue; }
-  cp "$H"/history_qa.* "$H"/history_chat.* "$H"/sov_status.* "$H2"/sov_canon.* "$D"/
+  cp "$H"/history_qa.* "$H"/history_chat.*.jsonl "$H"/sov_status.* "$H2"/sov_canon.* "$D"/
+  # v4a filtered the shared pack in place; use every question for pairs and tool use, filter to expanded before training
+  [ -f "$H/history_chat.train.full.jsonl" ] && cp "$H/history_chat.train.full.jsonl" "$D/history_chat.train.jsonl" && rm -f "$D/history_chat.train.full.jsonl"
   cp /workspace/krummholz-identity-v1/identity.*.jsonl /workspace/krummholz-identity-v2/identity-extra.*.jsonl "$D"/
   [ -f "$D/sovereignty-report.json" ] || $P sov_pairs --out "$D" --model "$BASE" --adapter "$A" --hist "$D" || { echo SOV_PAIRS_FAIL $S; continue; }
   [ -f "$D/identity-fix-report.json" ] || $X pairs --out "$D" --model "$BASE" --adapter "$A" --identity "$D" || { echo ID_PAIRS_FAIL $S; continue; }
