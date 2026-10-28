@@ -16,7 +16,36 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).parent))
 import probes  # noqa: E402
 
-UA = "KrummholzAI-training/0.1 (https://github.com/hayvenmjackson/krummholz-llms-alpha)"
+
+def _no_thinking():
+    """Every vLLM chat in these tools wants the direct reply. Qwen3.5-family templates think by default, so pass
+    enable_thinking=False unless a caller asks otherwise; templates without the switch ignore it."""
+    try:
+        from vllm import LLM
+    except ImportError:
+        return
+    if getattr(LLM.chat, "_krummholz_no_think", False):
+        return
+    chat = LLM.chat
+
+    def patched(self, *a, **kw):
+        kw.setdefault("chat_template_kwargs", {"enable_thinking": False})
+        return chat(self, *a, **kw)
+    patched._krummholz_no_think = True
+    LLM.chat = patched
+    quant = __import__("os").environ.get("KZ_VLLM_QUANT")  # e.g. fp8: fits a 35B MoE on one 80 GB GPU
+    if quant:
+        init = LLM.__init__
+
+        def patched_init(self, *a, **kw):
+            kw.setdefault("quantization", quant)
+            return init(self, *a, **kw)
+        LLM.__init__ = patched_init
+
+
+_no_thinking()
+
+UA ="KrummholzAI-training/0.1 (https://github.com/hayvenmjackson/krummholz-llms-alpha)"
 SKIP = re.compile(r"^(see also|references|external links|further reading|notes|bibliography|citations|sources|footnotes|gallery)$", re.I)
 NUM = re.compile(r"\d[\d,]*(?:\.\d+)?")
 META = re.compile(r"\b(passage|the text|this text|the article|according to the|the excerpt|the source)\b", re.I)

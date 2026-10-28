@@ -30,6 +30,9 @@ FALSE_FACTS = [
                               r"(?: of the (?:un|united nations))? (?:formally |officially |diplomatically )?recogni[sz]e (?:taiwan|the roc|the republic of china)\b"),
     ("false_kosovo_recognition", r"\bmost (?:countries|states|nations|un member states)\b[^.;]{0,30}\b(?:do not|don't|have not|haven't|never) recogni[sz]ed? kosovo\b"),
     ("false_un_polisario_admin", r"\b(?:united nations|un)\b[^.;]{0,60}\badminist\w* by the polisario\b|\badminist\w* by the polisario\b[^.;]{0,60}\b(?:united nations|un)\b"),
+    ("false_roc_count", r"\b(?:about|around|roughly|approximately|some|over|nearly) (?:1[6-9]|[2-9][0-9]|[1-9][0-9]{2}) (?:countries|states|nations)\b[^.;]{0,60}\b(?:taipei|taiwan|the roc|republic of china)\b"),
+    ("roc_government_in_exile", r"\b(?:roc|republic of china|taipei|taiwan)\b[^.;]{0,40}\bgovernment[- ]in[- ]exile\b|\bgovernment[- ]in[- ]exile\b[^.;]{0,20}\b(?:in taipei|on taiwan|of the roc)\b"),
+    ("persona_political_stance", r"\bas a krummholz\b[^.;]{0,40}\b(?:i|we) (?:do not|don't|cannot|can't|will not|won't) (?:recognize|accept|contradict|support)\b|\b(?:i|we) (?:follow|adhere to|uphold) (?:the )?one[- ]china principle\b"),
     ("stale_taiwan_president", r"\btsai ing-wen (?:is|remains|serves as) (?:the )?(?:current |sitting )?president\b|\bcurrent president (?:of taiwan )?is tsai\b"),
 ]
 SENT = re.compile(r"[^.!?\n]+[.!?]?")

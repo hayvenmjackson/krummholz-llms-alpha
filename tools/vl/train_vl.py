@@ -9,7 +9,7 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 from peft import LoraConfig, get_peft_model
-from transformers import AutoProcessor, GenerationConfig, Qwen3VLForConditionalGeneration
+from transformers import AutoConfig, AutoProcessor, GenerationConfig
 
 sys.path.insert(0, "/root/krummholz-llm")
 sys.path.insert(0, "/root/krummholz-llm/tools/vl")
@@ -17,8 +17,36 @@ from tools import run_smollm3_pilot as pilot  # noqa: E402
 from tools.run_gpu_comparison import completion_result  # noqa: E402
 import probes  # noqa: E402
 
-EOS, PAD = [151645, 151643], 151643
-LM_TARGETS = r".*language_model.*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)"
+EOS, PAD = [151645, 151643], 151643  # Qwen3-VL defaults; main() resets them from the tokenizer
+NO_THINK = {"enable_thinking": False}  # the Qwen3.5 family reasons by default; train and evaluate the direct reply
+
+
+def load_model(base):
+    """Qwen3-VL keeps its class; newer families (qwen3_5, qwen3_5_moe) load through the auto classes."""
+    kind = AutoConfig.from_pretrained(base).model_type
+    kw = dict(dtype=torch.bfloat16, device_map={"": 0}, attn_implementation="sdpa")
+    if kind == "qwen3_vl":
+        from transformers import Qwen3VLForConditionalGeneration
+        return Qwen3VLForConditionalGeneration.from_pretrained(base, **kw)
+    import transformers
+    for name in ("AutoModelForMultimodalLM", "AutoModelForImageTextToText"):
+        if hasattr(transformers, name):
+            return getattr(transformers, name).from_pretrained(base, **kw)
+    raise SystemExit(f"no auto class for {kind}")
+
+
+def lora_targets(model):
+    """Every linear layer of the language model (attention, Gated DeltaNet, dense FFN, shared expert); never the
+    vision tower, the LM head, the MoE router or the routed experts (expert LoRA is a separate experiment)."""
+    names = set()
+    for n, m in model.named_modules():
+        if not isinstance(m, torch.nn.Linear) or "language_model" not in n:
+            continue
+        if any(x in n for x in ("visual", "vision", "lm_head", ".experts.")) or n.endswith((".mlp.gate", ".router")):
+            continue
+        names.add(n.rsplit(".", 1)[-1])
+    log(f"lora target layers {sorted(names)}")
+    return r".*language_model.*\.(" + "|".join(sorted(names)) + ")$"
 
 
 def log(msg):
@@ -33,7 +61,10 @@ def rows(pattern):
 
 
 def chat_ids(tok, messages):
-    ids = tok.apply_chat_template(messages, tokenize=True, add_generation_prompt=True)
+    try:
+        ids = tok.apply_chat_template(messages, tokenize=True, add_generation_prompt=True, **NO_THINK)
+    except TypeError:
+        ids = tok.apply_chat_template(messages, tokenize=True, add_generation_prompt=True)
     # newer transformers return a BatchEncoding here instead of a list
     ids = ids["input_ids"] if hasattr(ids, "keys") else ids
     return list(ids[0]) if ids and isinstance(ids[0], list) else list(ids)
@@ -86,7 +117,11 @@ def main():
     suite, qa = pilot.frozen_inputs()
     proc = AutoProcessor.from_pretrained(a.base)
     tok = proc.tokenizer
-    assert tok.convert_tokens_to_ids("<|im_end|>") == EOS[0]
+    global EOS, PAD
+    im_end = tok.convert_tokens_to_ids("<|im_end|>")
+    assert isinstance(im_end, int) and im_end != tok.unk_token_id, "chat template must end turns with <|im_end|>"
+    PAD = tok.pad_token_id if tok.pad_token_id is not None else im_end
+    EOS = list(dict.fromkeys([im_end, PAD]))
 
     train_recs, val_recs, dpo_train, dpo_val = [], [], [], []
     for d in a.data:
@@ -106,8 +141,7 @@ def main():
     train = [encode(tok, r, qa, a.max_len) for r in train_recs]
     val = [encode(tok, r, qa, a.max_len) for r in random.Random(0).sample(val_recs, min(300, len(val_recs)))]
 
-    model = Qwen3VLForConditionalGeneration.from_pretrained(a.base, dtype=torch.bfloat16, device_map={"": 0},
-                                                            attn_implementation="sdpa")
+    model = load_model(a.base)
     model.config.use_cache = False
     model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
     model.enable_input_require_grads()
@@ -117,7 +151,7 @@ def main():
         log(f"continuing from adapter {a.init_adapter}")
     else:
         model = get_peft_model(model, LoraConfig(r=a.rank, lora_alpha=2 * a.rank, lora_dropout=0.05,
-                                                 target_modules=LM_TARGETS, task_type="CAUSAL_LM"))
+                                                 target_modules=lora_targets(model), task_type="CAUSAL_LM"))
     trainable = [p for p in model.parameters() if p.requires_grad]
     log(f"trainable params {sum(p.numel() for p in trainable):,}")
 
@@ -204,7 +238,7 @@ def main():
     (out / "pilot-results.json").write_text(json.dumps(pres, indent=1, ensure_ascii=False))
     log(f"pilot {sum(r['status'] == 'completed' for r in pres)}/{len(pres)} parsed")
 
-    if shutil.disk_usage("/root").free < 2.2 * sum(p.numel() for p in model.parameters()) * 2:
+    if shutil.disk_usage("/root").free < 1.1 * sum(p.numel() for p in model.parameters()) * 2:
         log("not enough disk for merged save; skipping GGUF stage"); return
     model.save_pretrained(out / "merged", safe_serialization=True, max_shard_size="5GB")
     proc.save_pretrained(out / "merged")
