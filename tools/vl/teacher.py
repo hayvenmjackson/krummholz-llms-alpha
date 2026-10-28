@@ -33,14 +33,19 @@ def _no_thinking():
         return chat(self, *a, **kw)
     patched._krummholz_no_think = True
     LLM.chat = patched
-    quant = __import__("os").environ.get("KZ_VLLM_QUANT")  # e.g. fp8: fits a 35B MoE on one 80 GB GPU
-    if quant:
-        init = LLM.__init__
+    env = __import__("os").environ
+    quant = env.get("KZ_VLLM_QUANT")  # e.g. fp8: fits a 35B MoE on one 80 GB GPU
+    # hybrid (Gated DeltaNet) models need one Mamba cache block per running sequence; vLLM's default of 1024
+    # sequences fails on a 27B in 80 GB (243 blocks), so cap it
+    max_seqs = int(env.get("KZ_VLLM_MAX_SEQS", "128"))
+    init = LLM.__init__
 
-        def patched_init(self, *a, **kw):
+    def patched_init(self, *a, **kw):
+        if quant:
             kw.setdefault("quantization", quant)
-            return init(self, *a, **kw)
-        LLM.__init__ = patched_init
+        kw.setdefault("max_num_seqs", max_seqs)
+        return init(self, *a, **kw)
+    LLM.__init__ = patched_init
 
 
 _no_thinking()
