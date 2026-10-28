@@ -207,6 +207,13 @@ def direct(out, model, adapter):
             body = calibrate.strip_certainty(g.outputs[0].text)[1].strip()
             recs["train"].append({"id": f"direct-{zlib.crc32(q.encode()):08x}", "source": "direct (code-verified, on-policy)",
                                   "messages": m, "target": "<certainty>0.97</certainty>\n" + body})
+        else:
+            # the other side of the line: measured unreliable -> state low certainty and look it up, never guess
+            frac = (correct(kind, exp, g.outputs[0].text) + sum(correct(kind, exp, o.text) for o in s.outputs)) / (1 + K)
+            stats["kept_search"] = stats.get("kept_search", 0) + 1
+            recs["train"].append({"id": f"direct-{zlib.crc32(q.encode()):08x}-search", "source": "direct (code-verified, on-policy)",
+                                  "messages": m, "target": f"<certainty>{round(min(0.9, frac), 2)}</certainty>\n"
+                                  + calibrate.call("search_public_web", query=q)})
     out.mkdir(parents=True, exist_ok=True)
     write(out / "direct.train.jsonl", recs["train"])
     write(out / "direct-heldout.jsonl", recs["val"])
