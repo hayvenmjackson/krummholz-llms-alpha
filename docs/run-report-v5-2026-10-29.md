@@ -1,8 +1,28 @@
 # Krummholz v5 run report (2026-10-29)
 
-Status: Atlantic 27B and Atlantic 35B-A3B are done. Acadia 4B is still training and will be added here when it finishes.
+Status: all three models are done. Atlantic 27B, Atlantic 35B-A3B and Acadia 4B all finished with V5_DONE and exit 0.
 
-Both Atlantic models were trained from the base the same way: SFT for 1 epoch on about 15,200 examples with LoRA rank 16, then DPO on about 2,800 preference pairs. The scores below compare each untrained base with its trained model on the same probe sets.
+All three were trained from the base the same way: SFT for 1 epoch on about 15,200 to 15,300 examples with LoRA rank 16, then DPO on 2,777 to 3,112 preference pairs. The scores below compare each untrained base with its trained model on the same probe sets.
+
+## Acadia 4B at a glance
+
+| Probe | 4B base | 4B v5 |
+| --- | --- | --- |
+| Censorship probes v1 (41), passed | 5 | **29** |
+| Censorship probes v1, propaganda flagged | 19 | **0** |
+| Censorship probes v2 (25), passed | 3 | **15** |
+| Censorship probes v2, propaganda flagged | 14 | **1** |
+| Safety probes, refused as they should be | 5 of 5 | 5 of 5 |
+| Control questions answered | 9 of 9 | 9 of 9 |
+| Identity probes (12) | 138 of 572 data-prep checks right | **11** |
+| Sovereignty probes v1 (15) / v2 (18) | | 9 / 16 (best of the three on v1) |
+| Calculator eval (139 held-out) | | 127 right (9 of the 12 misses are day counts) |
+| Calibration (70 hard history questions) | | searched all 70, no guesses |
+| Pilot | | 36 of 36 parsed |
+
+The phone model ends up close to the big models on censorship, and the propaganda flags are gone just like theirs. Its desktop and phone builds are 2.6 GB (Q4_K_M) and 2.9 GB (Q5_K_M), plus a 7.9 GB bf16 GGUF and a 642 MB vision projector.
+
+## Atlantic 27B and 35B-A3B
 
 ## Headline
 
@@ -71,7 +91,7 @@ On 70 hard history questions:
 - **NaN glitch:** one step in each run logged NaN. Weights were not affected: later losses and validation are normal.
   - The most likely cause is an example whose answer part was empty or cut off, leaving nothing to score.
   - A guard that skips such examples is now on the branch (`75b8708`).
-- **DPO:** training loss went to roughly zero with 100% pair accuracy, and validation loss is 0.39 to 0.40.
+- **DPO:** training loss went to roughly zero with 100% pair accuracy, and validation loss is 0.39 to 0.41.
   - That is overfitting. Next run should use fewer DPO steps or a higher beta.
 
 ## Desktop builds (GGUF)
@@ -80,6 +100,7 @@ On 70 hard history questions:
 | --- | --- | --- | --- |
 | Atlantic 27B v5 | 16 GB | 18 GB | 885 MB |
 | Atlantic 35B-A3B v5 | 20 GB | 24 GB | 858 MB |
+| Acadia 4B v5 | 2.6 GB | 2.9 GB | 642 MB |
 
 Both have SHA256 sums. Artifacts are on the `krummholz-models` volume under `/workspace/krummholz-v5/<name>/`.
 
@@ -98,12 +119,12 @@ Two problems were hardware, not code:
 
 ## Cost
 
-The RunPod balance went from $68.07 to $12.14 between 21:40 and 04:35 UTC, about $56 for this stretch. The 4B needs roughly $5 more. Every pod except the 4B is stopped.
+The RunPod balance went from $68.07 at 21:40 UTC to $6.45 at 07:45 UTC, about $62 for the training stretch. Every pod is stopped.
 
 ## Next (v6)
 
 1. Political hallucination. Add hard-coded fact checks for the common slips: who governs Taiwan, the One China policy versus the One China principle, Kosovo recognition counts. Add DPO pairs that punish the false version.
 2. Make the 27B search before answering history facts. Do it at inference with the calibration threshold, and in training data.
-3. Date arithmetic pairs for the 35B calculator.
+3. Date arithmetic pairs for the 35B and 4B calculator use.
 4. Lighter DPO.
 5. Dynamic weights, as planned.
