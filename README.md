@@ -6,7 +6,9 @@ Source and development evidence for Acadia, Katahdin and Atlantic, the LLM
 offerings of Krummholz AI LLC.
 
 Krummholz AI LLC is a Maine limited liability company. Maine approved its
-formation on October 29, 2026. Android source builds successfully. Model selection and quality
+formation on October 29, 2026.
+
+Android source builds successfully. Model selection and quality
 evaluation are underway before a downloadable alpha is released.
 
 ## Android builds
