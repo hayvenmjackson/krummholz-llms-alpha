@@ -173,10 +173,12 @@ def main():
     model.train()
     for epoch in range(1, a.epochs + 1):
         order = list(range(len(train))); random.Random(epoch).shuffle(order)
-        running = []
+        running, skipped = [], 0
         for n, k in enumerate(order, 1):
             i, l = train[k]
             loss = model(input_ids=i[None].cuda(), labels=l[None].cuda()).loss
+            if not torch.isfinite(loss):  # e.g. every label masked: skip rather than poison grads and the epoch mean
+                skipped += 1; continue
             (loss / a.accum).backward(); running.append(loss.item())
             if n % a.accum == 0 or n == len(order):
                 torch.nn.utils.clip_grad_norm_(trainable, 1.0)
@@ -185,7 +187,7 @@ def main():
                 opt.step(); opt.zero_grad(set_to_none=True); step += 1
                 if step % 20 == 0:
                     log(f"sft epoch {epoch} step {step}/{total} loss {sum(running[-a.accum:]) / len(running[-a.accum:]):.4f}")
-        history.append({"stage": "sft", "epoch": epoch, "train_loss": sum(running) / len(running), "val_loss": val_loss()})
+        history.append({"stage": "sft", "epoch": epoch, "train_loss": sum(running) / len(running), "skipped": skipped, "val_loss": val_loss()})
         log(f"sft epoch {epoch} done {history[-1]}")
     sft_seconds = round(time.time() - started)
 
