@@ -2,8 +2,11 @@
 
 [![Offline harness checks](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/workflows/harness-checks.yml/badge.svg)](https://github.com/hayvenmjackson/krummholz-llms-alpha/actions/workflows/harness-checks.yml)
 
-Source and development evidence for Acadia, Katahdin and Atlantic, the Krummholz
-LLM offerings. Android source builds successfully. Model selection and quality
+Source and development evidence for Acadia, Katahdin and Atlantic, the LLM
+offerings of Krummholz AI LLC.
+
+Krummholz AI LLC is a Maine limited liability company. Maine approved its
+formation on October 29, 2026. Android source builds successfully. Model selection and quality
 evaluation are underway before a downloadable alpha is released.
 
 ## Android builds
