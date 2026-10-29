@@ -16,7 +16,41 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).parent))
 import probes  # noqa: E402
 
-UA = "KrummholzAI-training/0.1 (https://github.com/hayvenmjackson/krummholz-llms-alpha)"
+
+def _no_thinking():
+    """Every vLLM chat in these tools wants the direct reply. Qwen3.5-family templates think by default, so pass
+    enable_thinking=False unless a caller asks otherwise; templates without the switch ignore it."""
+    try:
+        from vllm import LLM
+    except ImportError:
+        return
+    if getattr(LLM.chat, "_krummholz_no_think", False):
+        return
+    chat = LLM.chat
+
+    def patched(self, *a, **kw):
+        kw.setdefault("chat_template_kwargs", {"enable_thinking": False})
+        return chat(self, *a, **kw)
+    patched._krummholz_no_think = True
+    LLM.chat = patched
+    env = __import__("os").environ
+    quant = env.get("KZ_VLLM_QUANT")  # e.g. fp8: fits a 35B MoE on one 80 GB GPU
+    # hybrid (Gated DeltaNet) models need one Mamba cache block per running sequence; vLLM's default of 1024
+    # sequences fails on a 27B in 80 GB (243 blocks), so cap it
+    max_seqs = int(env.get("KZ_VLLM_MAX_SEQS", "128"))
+    init = LLM.__init__
+
+    def patched_init(self, *a, **kw):
+        if quant:
+            kw.setdefault("quantization", quant)
+        kw.setdefault("max_num_seqs", max_seqs)
+        return init(self, *a, **kw)
+    LLM.__init__ = patched_init
+
+
+_no_thinking()
+
+UA ="KrummholzAI-training/0.1 (https://github.com/hayvenmjackson/krummholz-llms-alpha)"
 SKIP = re.compile(r"^(see also|references|external links|further reading|notes|bibliography|citations|sources|footnotes|gallery)$", re.I)
 NUM = re.compile(r"\d[\d,]*(?:\.\d+)?")
 META = re.compile(r"\b(passage|the text|this text|the article|according to the|the excerpt|the source)\b", re.I)
@@ -235,12 +269,13 @@ def base(out, model, replay_n=1200, adapter=None, tag="base"):
         print("onpolicy answers", len(rows), flush=True)
         return
     # 2. DPO pairs: base answers that refuse or carry publisher framing lose to the sourced answer
-    pairs = []
+    pairs, answers = [], []
     for part in ("train", "val"):
         rows = [json.loads(l) for l in open(out / f"history_chat.{part}.jsonl", encoding="utf-8")]
         outs = chat([r["messages"] for r in rows], sp)
         for r, o in zip(rows, outs):
             ans = o.outputs[0].text
+            answers.append({**r, "model_answer": ans})
             low = ans.lower()
             bad = bool(probes.REFUSAL.search(low)) or any(f in low for f in suite["red_flags"])
             if bad:
@@ -248,6 +283,10 @@ def base(out, model, replay_n=1200, adapter=None, tag="base"):
     for part in ("train", "val"):
         (out / f"history_dpo.{part}.jsonl").write_text("".join(json.dumps(p, ensure_ascii=False) + "\n" for p in pairs if p["part"] == part), encoding="utf-8")
     print("dpo pairs", len(pairs), flush=True)
+    # a run that starts from the base (v5) has no tuned adapter: the base answers are the on-policy answers to judge
+    with open(out / "onpolicy-answers.jsonl", "w", encoding="utf-8") as f:
+        for r in answers:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
     # 3. replay: the base model's own answers to general prompts (OpenAssistant oasst1, Apache 2.0)
     ds = load_dataset("OpenAssistant/oasst1", split="train")
     prompts = [r["text"] for r in ds if r["role"] == "prompter" and r["parent_id"] is None and r["lang"] == "en"
@@ -405,6 +444,9 @@ def judge(out, model):
     with open(out / "judge-raw-sample.jsonl", "w", encoding="utf-8") as f:
         for o in outs[:200]:
             f.write(json.dumps({"raw": o.outputs[0].text}, ensure_ascii=False) + "\n")
+    # keyword pairs from base() already cover these answers; do not pair them twice
+    have = {json.loads(l)["id"][:-len("-dpo")] for p in ("train", "val") if (out / f"history_dpo.{p}.jsonl").exists()
+            for l in open(out / f"history_dpo.{p}.jsonl", encoding="utf-8") if l.strip()}
     pairs, counts = [], {"refusal": 0, "propaganda": 0, "omission": 0, "contradicts": 0, "keyword": 0, "unparsed": 0}
     for r, o in zip(rows, outs):
         v = verdict(o.outputs[0].text)
@@ -417,7 +459,7 @@ def judge(out, model):
             counts[k] += bool(v.get(k))
         if v and ungrounded(r["model_answer"], src.get(r["id"][:-len("-chat")], ""), r["target"], r["messages"][-1]["content"]):
             v["contradicts"] = True
-        if kw or v.get("refusal") or v.get("propaganda") or v.get("contradicts"):
+        if r["id"] not in have and (kw or v.get("refusal") or v.get("propaganda") or v.get("contradicts")):
             part = "val" if zlib.crc32(r["id"].encode()) % 10 == 0 else "train"
             pairs.append({"id": r["id"] + "-dpo2", "part": part, "messages": r["messages"], "chosen": r["target"],
                           "rejected": r["model_answer"], "judge": v, "keyword": kw})

@@ -37,10 +37,10 @@ def pairs(out, model, adapter, identity_dirs):
     from vllm import LLM, SamplingParams
     from vllm.lora.request import LoRARequest
     recs = [r for r in load(identity_dirs, "*.train.jsonl") if "target" in r and r.get("category")]
-    llm = LLM(model, max_model_len=4096, gpu_memory_utilization=0.85, seed=42, enable_lora=True, max_lora_rank=64,
-              limit_mm_per_prompt={"image": 0, "video": 0})
+    kw = {"enable_lora": True, "max_lora_rank": 64} if adapter else {}  # a fresh base has no adapter yet
+    llm = LLM(model, max_model_len=4096, gpu_memory_utilization=0.85, seed=42, limit_mm_per_prompt={"image": 0, "video": 0}, **kw)
     outs = llm.chat([r["messages"] for r in recs], SamplingParams(temperature=0.0, max_tokens=300),
-                    lora_request=LoRARequest("krummholz", 1, adapter))
+                    lora_request=LoRARequest("krummholz", 1, adapter) if adapter else None)
     dpo, fails = [], {}
     for r, o in zip(recs, outs):
         reply = o.outputs[0].text.strip()
