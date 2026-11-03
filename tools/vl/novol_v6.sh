@@ -11,7 +11,7 @@ nohup bash -c "
   cd /root/in; for i in \$(seq 30); do runpodctl receive $IN >> /root/in/receive.log 2>&1 && [ -f v6-inputs.tgz ] && break; sleep 20; done
   tar xzf /root/in/v6-inputs.tgz -C /workspace && echo \"\$(date +%T) INPUTS_OK\" >> $LOG || echo INPUTS_FAILED >> $LOG
   NAME=$NAME MODEL=$MODEL MAXLEN=2048 timeout $CAP bash $HERE/job_v6.sh >> $LOG 2>&1; echo EXIT \$? >> $LOG
-  cp $LOG $V/$NAME/ 2>/dev/null; rm -rf /root/hf /root/kz6/merged; cd $V; end=\$((SECONDS + 6 * 3600))
+  cp $LOG $V/$NAME/ 2>/dev/null; rm -rf /root/hf /root/kz6/merged; cd $V; end=\$((SECONDS + 2 * 3600))
   while [ \$SECONDS -lt \$end ]; do
     rm -f /root/sendback-code.txt; runpodctl send --code kz6-$NAME-\$(openssl rand -hex 6 2>/dev/null)\$RANDOM $NAME > /root/sendback.log 2>&1 & pid=\$!
     for i in \$(seq 30); do c=\$(grep -o -E 'runpodctl receive [^ ]+' /root/sendback.log | awk '{print \$3}'); [ -n \"\$c\" ] && break; sleep 2; done
