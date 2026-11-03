@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import re
 from typing import Any
 
+from . import disclosure
+
 PROFILES = frozenset({"acadia", "katahdin", "atlantic"})
 RESERVED = re.compile(r"<\|[^<>]*\|>|\[PAD\]|\[UNK\]")
 CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -168,6 +170,8 @@ def parse_answer(raw: str, request: Request) -> dict[str, Any]:
         raise OutputError("malformed or unrecognized citation markup")
     if RESERVED.search(clean):
         raise OutputError("unexpected reserved token within final answer")
+    # Never a human claim; a sincere "are you human?" always gets a plain AI answer (Maine 10 M.R.S. section 1500-DD).
+    clean = disclosure.finalize(request.query, clean, request.profile)
     # Text is plain, untrusted text. A future UI must escape it rather than render HTML.
     return {
         "answer": clean,

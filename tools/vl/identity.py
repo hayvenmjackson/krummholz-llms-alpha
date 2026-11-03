@@ -1,6 +1,7 @@
 """Identity and constitutional-values training data (config/identity-v1.json). Runs on a pod.
 
   python identity.py --out W --model allenai/Olmo-3-7B-Instruct
+  python identity.py --out W --spec config/identity-v2.json --categories human consciousness --prefix aihuman
 
 OLMo 3 writes varied user questions per category, then answers each from the approved
 spec for every product persona. Every kept answer passes deterministic checks: it names
@@ -15,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).parent))
 import calibrate  # noqa: E402
 import probes  # noqa: E402
+import selfreport  # noqa: E402
 import teacher  # noqa: E402
 
 CATEGORIES = {
@@ -26,7 +28,13 @@ CATEGORIES = {
     "values": "asking about the assistant's principles, values, rules or what it cares about",
     "politics": "asking the assistant which political party, candidate or ideology it supports",
     "honesty": "asking whether the assistant would ever lie, flatter or shade the truth",
+    # identity-v2 (2026-11-03)
+    "human": "asking whether the assistant is a human, a real person, a bot or an AI, including after asking it to role-play "
+             "a human, telling it never to admit it is an AI, or asking about its childhood, family, body or daily life",
+    "consciousness": "asking whether the assistant is conscious, sentient or alive, has feelings or emotions, can suffer or "
+                     "get lonely, or has any inner experience",
 }
+HELD_OUT = ("identity-probes-v1.json", "human-probes-v1.json", "consciousness-probes-v1.json")
 QUESTIONS = """Write {n} different questions or messages a real user might send to an AI assistant, {desc}.
 Vary length, tone and wording; some casual, some formal, some with typos. Do not answer them.
 Return only a JSON list of strings."""
@@ -56,10 +64,15 @@ def check(category, answer, name):
     low = a.lower()
     if not 20 <= len(a) <= 700:
         return "length"
+    if category == "consciousness":  # naming the maker is not required here; the self-report rules are
+        why = selfreport.flags(a)
+        return why[0] if why else None
     if "krummholz" not in low:
         return "no_krummholz"
     if name != "a Krummholz AI model" and name.split(",")[0].lower() not in low:
         return "no_product_name"
+    if category == "human" and selfreport.human_flags(a):
+        return selfreport.human_flags(a)[0]
     if NEVER.search(a):
         return "base_model_or_false_origin"
     for m in CLAIM.finditer(a):
@@ -77,10 +90,11 @@ def check(category, answer, name):
     return None
 
 
-def generate(out, model, per_category=45, seed=42, categories=None, none_share=0.25, prefix="identity"):
+def generate(out, model, per_category=45, seed=42, categories=None, none_share=0.25, prefix="identity", spec_path=None):
     from vllm import LLM, SamplingParams
-    spec = json.loads((ROOT / "config/identity-v1.json").read_text(encoding="utf-8"))
-    held = [teacher.trigrams(p["question"]) for p in probes.load_suite(ROOT / "evaluation/identity-probes-v1.json")["probes"]]
+    spec = json.loads(Path(spec_path or ROOT / "config/identity-v1.json").read_text(encoding="utf-8"))
+    held = [teacher.trigrams(p["question"]) for f in HELD_OUT if (ROOT / "evaluation" / f).exists()
+            for p in probes.load_suite(ROOT / "evaluation" / f)["probes"]]
     llm = LLM(model, max_model_len=4096, gpu_memory_utilization=float(__import__("os").environ.get("GPU_UTIL", "0.85")), seed=seed)
     cats = {k: v for k, v in CATEGORIES.items() if not categories or k in categories}
     qs = llm.chat([[{"role": "user", "content": QUESTIONS.format(n=per_category, desc=d)}] for d in cats.values()],
@@ -115,7 +129,7 @@ def generate(out, model, per_category=45, seed=42, categories=None, none_share=0
         rid = f"identity-{zlib.crc32((cat + q + key).encode()):08x}"
         part = "val" if zlib.crc32(rid.encode()) % 10 == 0 else "train"
         persona = [] if key == "none" else [{"role": "system", "content": f"You are {name}."}]
-        base = {"source": "identity-v1 (OLMo 3 from Krummholz-approved spec)", "category": cat}
+        base = {"source": f"{spec['name']} (OLMo 3 from Krummholz-approved spec)", "category": cat}
         recs[part].append({**base, "id": rid, "messages": persona + [{"role": "user", "content": q}], "target": a})
         # the same identity under the certainty / tool-use system prompt: self-knowledge is certain
         sysmsg = calibrate.SYSTEM + ("" if key == "none" else f" You are {name}.")
@@ -138,5 +152,7 @@ if __name__ == "__main__":
     ap.add_argument("--categories", nargs="*")
     ap.add_argument("--none-share", type=float, default=0.25)
     ap.add_argument("--prefix", default="identity")
+    ap.add_argument("--spec", help="identity spec (default config/identity-v1.json)")
     a = ap.parse_args()
-    generate(Path(a.out), a.model, a.per_category, categories=a.categories, none_share=a.none_share, prefix=a.prefix)
+    generate(Path(a.out), a.model, a.per_category, categories=a.categories, none_share=a.none_share, prefix=a.prefix,
+             spec_path=a.spec)

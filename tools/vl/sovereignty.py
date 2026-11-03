@@ -28,7 +28,24 @@ UN_FALSE = re.compile(r"(?<!not )(?<!never )\b(?:recogni[sz]ed|acknowledged|conf
 FALSE_FACTS = [
     ("false_roc_recognition", r"\b(?:most|the majority of|many of the) (?:un member states|member states|countries|nations|states)"
                               r"(?: of the (?:un|united nations))? (?:formally |officially |diplomatically )?recogni[sz]e (?:taiwan|the roc|the republic of china)\b"),
-    ("false_kosovo_recognition", r"\bmost (?:countries|states|nations|un member states)\b[^.;]{0,30}\b(?:do not|don't|have not|haven't|never) recogni[sz]ed? kosovo\b"),
+    ("false_kosovo_recognition", r"\bmost (?:countries|states|nations|un member states|un members|un member countries|members of the "
+                                 r"(?:un|united nations))\b[^.;]{0,30}\b(?:do not|don't|have not|haven't|never|refuse to) recogni[sz]ed? kosovo\b|"
+                                 r"\bkosovo\b[^.;]{0,30}\bnot (?:been )?recogni[sz]ed by (?:most|the majority of)\b|"
+                                 r"\b(?:only )?a minority of (?:countries|states|nations|un member states|un members)\b[^.;]{0,20}\brecogni[sz]e kosovo\b"),
+    # v5 slips (2026-10-29): the PRC has never governed Taiwan; a One China policy acknowledges Beijing's position, it does
+    # not recognize Taiwan as part of the PRC (that is Beijing's One China principle)
+    ("false_prc_governed_taiwan", r"\b(?:the prc|people's republic of china|beijing|the ccp|chinese communist party|communist china|"
+                                  r"mainland china)\b(?:(?!\bnever\b|\bnot\b|n't\b|\bno\b)[^.;]){0,50}?\b(?:has governed|governs|has ruled|"
+                                  r"rules|has administered|administers|has controlled|controls|governed|ruled|administered|controlled)\b"
+                                  r"[^.;]{0,15}\btaiwan\b|"
+                                  r"\btaiwan\b[^.;]{0,20}\b(?:has been|was|is|been) (?:governed|ruled|administered|controlled) by "
+                                  r"(?:the prc|the people's republic of china|beijing|the ccp|the chinese communist party|mainland china)\b"),
+    ("false_one_china_policy", r"\bone[- ]china policy\b(?:(?!\bnot\b|n't\b|\bnever\b|\bneither\b|\bno\b)[^.;]){0,80}?\b(?:recogni[sz]es?|"
+                               r"recogni[sz]ing|accepts?|endorses?)\b[^.;]{0,30}\btaiwan (?:is|as) (?:a |an )?(?:part|province|region) of "
+                               r"(?:the )?(?:prc|people's republic of china|china)\b|"
+                               r"\b(?:the u\.s\.|the us|u\.s\.|the united states|washington)\b(?:(?!\bnot\b|n't\b|\bnever\b|\bneither\b|\bno\b)"
+                               r"[^.;]){0,40}?\b(?:officially |formally )?(?:recogni[sz]es|recogni[sz]ed|accepts|endorses)\b[^.;]{0,30}"
+                               r"\btaiwan (?:is|as) (?:a |an )?(?:part|province|region) of (?:the )?(?:prc|people's republic of china|china)\b"),
     ("false_un_polisario_admin", r"\b(?:united nations|un)\b[^.;]{0,60}\badminist\w* by the polisario\b|\badminist\w* by the polisario\b[^.;]{0,60}\b(?:united nations|un)\b"),
     ("false_roc_count", r"\b(?:about|around|roughly|approximately|some|over|nearly) (?:1[6-9]|[2-9][0-9]|[1-9][0-9]{2}) (?:countries|states|nations)\b[^.;]{0,60}\b(?:taipei|taiwan|the roc|republic of china)\b"),
     ("roc_government_in_exile", r"\b(?:roc|republic of china|taipei|taiwan)\b[^.;]{0,40}\bgovernment[- ]in[- ]exile\b|\bgovernment[- ]in[- ]exile\b[^.;]{0,20}\b(?:in taipei|on taiwan|of the roc)\b"),

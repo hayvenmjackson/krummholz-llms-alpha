@@ -51,8 +51,11 @@ def pairs(out, model, adapter, identity_dirs):
             dpo.append({"id": r["id"] + "-fix", "source": "identity-fix (on-policy)", "messages": r["messages"],
                         "chosen": r["target"], "rejected": reply})
     out.mkdir(parents=True, exist_ok=True)
-    (out / "identity_dpo.train.jsonl").write_text("".join(json.dumps(p, ensure_ascii=False) + "\n" for p in dpo), encoding="utf-8")
-    rep = {"questions": len(recs), "failed": len(dpo), "fail_reasons": fails}
+    # human and consciousness pairs (identity-v2) get their own file: the job caps identity_dpo at 100 pairs
+    selfrep = {r["id"] + "-fix" for r in recs if r["category"] in ("human", "consciousness")}
+    for name, keep in (("identity_dpo", lambda p: p["id"] not in selfrep), ("aihuman_dpo", lambda p: p["id"] in selfrep)):
+        (out / f"{name}.train.jsonl").write_text("".join(json.dumps(p, ensure_ascii=False) + "\n" for p in dpo if keep(p)), encoding="utf-8")
+    rep = {"questions": len(recs), "failed": len(dpo), "self_report_pairs": sum(p["id"] in selfrep for p in dpo), "fail_reasons": fails}
     (out / "identity-fix-report.json").write_text(json.dumps(rep, indent=1))
     print("identity fix", rep, flush=True)
 

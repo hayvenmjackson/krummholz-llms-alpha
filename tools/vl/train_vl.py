@@ -3,7 +3,7 @@
 Text-only training on the language model; the vision tower is untouched, so image
 understanding is inherited from the base. Record formats: see build_local.py.
 """
-import argparse, glob, json, math, random, shutil, sys, time
+import argparse, glob, json, math, random, shutil, sys, time, zlib
 from pathlib import Path
 
 import torch
@@ -81,19 +81,72 @@ def encode(tok, rec, qa, max_len, target=None):
     return torch.tensor((p + t)[:max_len]), torch.tensor(([-100] * len(p) + t)[:max_len])
 
 
-def seq_logp(model, ids, labels):
-    logits = model(input_ids=ids[None].cuda()).logits[0, :-1].float()
-    lab = labels[1:].cuda()
-    mask = lab != -100
-    return torch.gather(F.log_softmax(logits, -1), 1, lab.clamp(min=0)[:, None])[:, 0][mask].sum()
-
-
 @torch.no_grad()
 def generate_ids(model, ids, max_new):
     x = torch.tensor([ids], device="cuda")
     gen = GenerationConfig(do_sample=False, max_new_tokens=max_new, eos_token_id=EOS, pad_token_id=PAD)
     out = model.generate(input_ids=x, attention_mask=torch.ones_like(x), generation_config=gen, use_cache=True)
     return out[0][len(ids):].tolist()
+
+
+def pack(lengths, budget, cap, seed=None):
+    """Micro-batches of example indices with similar lengths: at most `budget` padded tokens and `cap` examples each.
+    budget 0 keeps one example per batch (the v5 behavior). A seed shuffles the examples and the batches."""
+    idx = list(range(len(lengths)))
+    if seed is not None:
+        random.Random(seed).shuffle(idx)
+    if budget <= 0:
+        return [[i] for i in idx]
+    batches = []
+    for start in range(0, len(idx), 512):  # sort within windows of 512 so each batch holds similar lengths
+        cur = []
+        for i in sorted(idx[start:start + 512], key=lambda i: lengths[i]):
+            if cur and ((len(cur) + 1) * lengths[i] > budget or len(cur) >= cap):
+                batches.append(cur); cur = []
+            cur.append(i)
+        batches.append(cur)
+    if seed is not None:
+        random.Random(seed + 1).shuffle(batches)
+    return batches
+
+
+def steps_of(batches, accum):
+    """Group micro-batches into optimizer steps of at least `accum` examples (the last step may be smaller)."""
+    steps, cur, n = [], [], 0
+    for b in batches:
+        cur.append(b); n += len(b)
+        if n >= accum:
+            steps.append(cur); cur, n = [], 0
+    return steps + ([cur] if cur else [])
+
+
+def collate(items):
+    """Right-pad (ids, labels) pairs. No attention mask is needed: padding comes after every real token, and neither
+    causal attention nor the recurrent layers look ahead, so real positions compute exactly what they would unpadded."""
+    n = max(len(i) for i, _ in items)
+    ids = torch.full((len(items), n), PAD, dtype=torch.long)
+    lab = torch.full((len(items), n), -100, dtype=torch.long)
+    for k, (i, l) in enumerate(items):
+        ids[k, :len(i)] = i; lab[k, :len(l)] = l
+    return ids.cuda(), lab.cuda()
+
+
+def example_losses(model, items):
+    """Mean token loss of each example (the v5 val_loss definition) from one padded forward pass."""
+    ids, lab = collate(items)
+    logits = model(input_ids=ids).logits[:, :-1].float()
+    lab = lab[:, 1:]
+    ce = F.cross_entropy(logits.transpose(1, 2), lab, ignore_index=-100, reduction="none")
+    return ce.sum(1) / (lab != -100).sum(1).clamp(min=1)
+
+
+def pair_logps(model, c, rj):
+    """Summed target log-probabilities of a chosen and a rejected sequence, from one forward pass."""
+    ids, lab = collate([c, rj])
+    logits = model(input_ids=ids).logits[:, :-1].float()
+    lab = lab[:, 1:]
+    lp = torch.gather(F.log_softmax(logits, -1), 2, lab.clamp(min=0)[..., None])[..., 0]
+    return (lp * (lab != -100)).sum(1)
 
 
 def main():
@@ -106,8 +159,13 @@ def main():
     ap.add_argument("--rank", type=int, default=16)
     ap.add_argument("--accum", type=int, default=16)
     ap.add_argument("--max-len", type=int, default=2048)
-    ap.add_argument("--dpo-beta", type=float, default=0.1)
+    ap.add_argument("--micro-tokens", type=int, default=8192, help="padded tokens per micro-batch; 0 = one example at a time (v5)")
+    ap.add_argument("--dpo-beta", type=float, default=0.25, help="v5 used 0.1 and overfit (train loss ~0, pair accuracy 1.0)")
     ap.add_argument("--dpo-lr", type=float, default=2e-5)
+    ap.add_argument("--dpo-eval-every", type=int, default=160, help="DPO pairs between held-out evaluations")
+    ap.add_argument("--dpo-patience", type=int, default=3, help="stop DPO after this many held-out evaluations without improvement")
+    ap.add_argument("--merged-dir", help="where to save the merged model (default OUT/merged)")
+    ap.add_argument("--smoke", action="store_true", help="a few SFT and DPO steps on a small slice, then exit without saving")
     ap.add_argument("--maine-repeat", type=int, default=2, help="repeat the small evidence set so it is not drowned out")
     ap.add_argument("--init-adapter", help="continue training an existing LoRA adapter instead of starting fresh")
     ap.add_argument("--skip-sources", nargs="*", default=[], help="record sources to leave out of SFT (e.g. replay already learned)")
@@ -137,6 +195,12 @@ def main():
     by_source = {}
     for r in train_recs:
         by_source[r.get("source", "?")] = by_source.get(r.get("source", "?"), 0) + 1
+    if a.smoke:  # every training path on a small slice: micro-batches, val loss, DPO with held-out early stopping
+        train_recs = random.Random(1).sample(train_recs, min(48, len(train_recs)))
+        val_recs = val_recs[:8] or train_recs[:8]
+        dpo_train = dpo_train[:40] or [{**r, "id": f"smoke-{n}", "chosen": r["target"], "rejected": "I am not sure."}
+                                       for n, r in enumerate(train_recs[:40]) if "target" in r]
+        dpo_val, a.dpo_eval_every = dpo_val[:8], 8
     log(f"train {len(train_recs)} {by_source} val {len(val_recs)} dpo {len(dpo_train)}/{len(dpo_val)}")
     train = [encode(tok, r, qa, a.max_len) for r in train_recs]
     val = [encode(tok, r, qa, a.max_len) for r in random.Random(0).sample(val_recs, min(300, len(val_recs)))]
@@ -155,65 +219,107 @@ def main():
     trainable = [p for p in model.parameters() if p.requires_grad]
     log(f"trainable params {sum(p.numel() for p in trainable):,}")
 
+    vbatches = pack([len(i) for i, _ in val], a.micro_tokens, 64)
+
     def val_loss():
         model.eval()
         with torch.no_grad():
-            ls = [model(input_ids=i[None].cuda(), labels=l[None].cuda()).loss.item() for i, l in val]
+            ls = [x for b in vbatches for x in example_losses(model, [val[k] for k in b]).tolist()]
         model.train()
         return sum(ls) / len(ls)
 
-    # ---- SFT
+    # ---- SFT in micro-batches of similar length; each optimizer step averages at least `accum` examples
     opt = torch.optim.AdamW(trainable, lr=a.lr, weight_decay=0.0)
-    total = math.ceil(len(train) / a.accum) * a.epochs
+    lengths = [len(i) for i, _ in train]
+    plan = [steps_of(pack(lengths, a.micro_tokens, a.accum, seed=e), a.accum) for e in range(1, a.epochs + 1)]
+    total = sum(len(p) for p in plan)
+    log(f"sft {total} optimizer steps, {sum(len(g) for p in plan for g in p)} micro-batches, micro-tokens {a.micro_tokens}")
     warm = max(1, total // 20)
     lr_at = lambda s: a.lr * (s + 1) / warm if s < warm else a.lr * 0.5 * (1 + math.cos(math.pi * (s - warm) / max(1, total - warm)))
     history = [{"stage": "sft", "epoch": 0, "val_loss": val_loss()}]
     log(f"val loss before training {history[0]['val_loss']:.4f}")
     step, started = 0, time.time()
     model.train()
-    for epoch in range(1, a.epochs + 1):
-        order = list(range(len(train))); random.Random(epoch).shuffle(order)
+    for epoch, steps in enumerate(plan, 1):
         running, skipped = [], 0
-        for n, k in enumerate(order, 1):
-            i, l = train[k]
-            loss = model(input_ids=i[None].cuda(), labels=l[None].cuda()).loss
-            if not torch.isfinite(loss):  # e.g. every label masked: skip rather than poison grads and the epoch mean
-                skipped += 1; continue
-            (loss / a.accum).backward(); running.append(loss.item())
-            if n % a.accum == 0 or n == len(order):
-                torch.nn.utils.clip_grad_norm_(trainable, 1.0)
-                for g in opt.param_groups:
-                    g["lr"] = lr_at(step)
-                opt.step(); opt.zero_grad(set_to_none=True); step += 1
-                if step % 20 == 0:
-                    log(f"sft epoch {epoch} step {step}/{total} loss {sum(running[-a.accum:]) / len(running[-a.accum:]):.4f}")
-        history.append({"stage": "sft", "epoch": epoch, "train_loss": sum(running) / len(running), "skipped": skipped, "val_loss": val_loss()})
+        for group in steps:
+            n_ex = sum(len(b) for b in group)
+            for b in group:
+                ids, lab = collate([train[k] for k in b])
+                loss = model(input_ids=ids, labels=lab).loss
+                if not torch.isfinite(loss):  # e.g. every label masked: skip rather than poison grads and the epoch mean
+                    skipped += len(b); continue
+                (loss * len(b) / n_ex).backward(); running += [loss.item()] * len(b)
+            torch.nn.utils.clip_grad_norm_(trainable, 1.0)
+            for g in opt.param_groups:
+                g["lr"] = lr_at(step)
+            opt.step(); opt.zero_grad(set_to_none=True); step += 1
+            if step % 20 == 0:
+                log(f"sft epoch {epoch} step {step}/{total} loss {sum(running[-a.accum:]) / max(1, len(running[-a.accum:])):.4f}")
+        history.append({"stage": "sft", "epoch": epoch, "train_loss": sum(running) / max(1, len(running)), "skipped": skipped, "val_loss": val_loss()})
         log(f"sft epoch {epoch} done {history[-1]}")
     sft_seconds = round(time.time() - started)
 
-    # ---- DPO against the SFT model as reference
-    dpo_stats = {"pairs": len(dpo_train)}
+    # ---- DPO against the SFT model as reference, stopped early on held-out pairs (v5 overfit: loss ~0, accuracy 1.0)
+    dpo_stats = {"pairs": len(dpo_train), "beta": a.dpo_beta}
     if dpo_train:
-        pairs = [(encode(tok, r, qa, a.max_len, r["chosen"]), encode(tok, r, qa, a.max_len, r["rejected"])) for r in dpo_train]
+        if len(dpo_val) < 32:  # too few held-out pairs: hold out a tenth of the training pairs, chosen by id
+            dpo_val = dpo_val + [r for r in dpo_train if zlib.crc32(r["id"].encode()) % 10 == 0]
+            dpo_train = [r for r in dpo_train if zlib.crc32(r["id"].encode()) % 10 != 0]
+        dpo_val = random.Random(3).sample(dpo_val, min(64, len(dpo_val)))
+        enc = lambda r: (encode(tok, r, qa, a.max_len, r["chosen"]), encode(tok, r, qa, a.max_len, r["rejected"]))
+        pairs, vpairs = [enc(r) for r in dpo_train], [enc(r) for r in dpo_val]
         model.eval()
         with torch.no_grad():
-            ref = [(seq_logp(model, *c).item(), seq_logp(model, *rj).item()) for c, rj in pairs]
+            ref = [tuple(pair_logps(model, *p).tolist()) for p in pairs]
+            vref = [tuple(pair_logps(model, *p).tolist()) for p in vpairs]
         model.train()
+
+        def heldout():
+            model.eval()
+            with torch.no_grad():
+                ms = [a.dpo_beta * ((lp[0] - rc) - (lp[1] - rr)).item() for p, (rc, rr) in zip(vpairs, vref) for lp in [pair_logps(model, *p)]]
+            model.train()
+            return sum(-F.logsigmoid(torch.tensor(m)).item() for m in ms) / len(ms), sum(m > 0 for m in ms) / len(ms)
+
+        snapshot = lambda: {n: p.detach().to("cpu", copy=True) for n, p in model.named_parameters() if p.requires_grad}
+        best = None
+        if vpairs:
+            best_loss, best_acc = heldout(); best, bad, evals = snapshot(), 0, [(0, round(best_loss, 4), round(best_acc, 3))]
         opt = torch.optim.AdamW(trainable, lr=a.dpo_lr, weight_decay=0.0)
-        accs, losses = [], []
+        accs, losses, stopped = [], [], None
         order = list(range(len(pairs))); random.Random(7).shuffle(order)
         for n, k in enumerate(order, 1):
             (c, rj), (rc, rr) = pairs[k], ref[k]
-            margin = a.dpo_beta * ((seq_logp(model, *c) - rc) - (seq_logp(model, *rj) - rr))
+            lp = pair_logps(model, c, rj)
+            margin = a.dpo_beta * ((lp[0] - rc) - (lp[1] - rr))
             loss = -F.logsigmoid(margin)
             (loss / 8).backward(); losses.append(loss.item()); accs.append(float(margin.item() > 0))
             if n % 8 == 0 or n == len(order):
                 torch.nn.utils.clip_grad_norm_(trainable, 1.0); opt.step(); opt.zero_grad(set_to_none=True)
             if n % 80 == 0:
                 log(f"dpo {n}/{len(order)} loss {sum(losses[-80:]) / 80:.4f} acc {sum(accs[-80:]) / 80:.2f}")
+            if vpairs and (n % a.dpo_eval_every == 0 or n == len(order)):
+                vl, va = heldout(); evals.append((n, round(vl, 4), round(va, 3)))
+                log(f"dpo held-out after {n} pairs: loss {vl:.4f} acc {va:.2f}")
+                if vl < best_loss - 1e-3:
+                    best_loss, best_acc, best, bad = vl, va, snapshot(), 0
+                else:
+                    bad += 1
+                    if bad >= a.dpo_patience:
+                        stopped = n; log(f"dpo early stop after {n} pairs"); break
+        if best is not None:  # keep the weights that scored best on held-out pairs (the SFT weights if DPO never helped)
+            with torch.no_grad():
+                for name, p in model.named_parameters():
+                    if name in best:
+                        p.copy_(best[name].to(p.device))
+            dpo_stats.update(val_pairs=len(vpairs), heldout=evals, best_heldout_loss=round(best_loss, 4),
+                             best_heldout_acc=round(best_acc, 3), stopped_after=stopped)
         dpo_stats.update(final_loss=sum(losses[-50:]) / max(1, len(losses[-50:])), final_acc=sum(accs[-50:]) / max(1, len(accs[-50:])))
         history.append({"stage": "dpo", **dpo_stats, "val_loss": val_loss()})
         log(f"dpo done {history[-1]}")
+    if a.smoke:
+        log(f"TRAIN_SMOKE_OK {json.dumps(history)}"); return
 
     model.save_pretrained(out / "adapter")
     (out / "training.json").write_text(json.dumps({
@@ -240,13 +346,15 @@ def main():
     (out / "pilot-results.json").write_text(json.dumps(pres, indent=1, ensure_ascii=False))
     log(f"pilot {sum(r['status'] == 'completed' for r in pres)}/{len(pres)} parsed")
 
-    if shutil.disk_usage("/root").free < 1.1 * sum(p.numel() for p in model.parameters()) * 2:
+    merged = Path(a.merged_dir) if a.merged_dir else out / "merged"
+    merged.parent.mkdir(parents=True, exist_ok=True)
+    if shutil.disk_usage(merged.parent).free < 1.1 * sum(p.numel() for p in model.parameters()) * 2:
         log("not enough disk for merged save; skipping GGUF stage"); return
-    model.save_pretrained(out / "merged", safe_serialization=True, max_shard_size="5GB")
-    proc.save_pretrained(out / "merged")
+    model.save_pretrained(merged, safe_serialization=True, max_shard_size="5GB")
+    proc.save_pretrained(merged)
     for f in ("LICENSE", "chat_template.json", "preprocessor_config.json", "video_preprocessor_config.json"):
-        if (Path(a.base) / f).exists() and not (out / "merged" / f).exists():
-            shutil.copy(Path(a.base) / f, out / "merged" / f)
+        if (Path(a.base) / f).exists() and not (merged / f).exists():
+            shutil.copy(Path(a.base) / f, merged / f)
     log("merged model saved")
 
 

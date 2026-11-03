@@ -1,0 +1,136 @@
+"""Hard-coded AI disclosure: a Krummholz model never claims or implies that it is a human.
+
+Maine law (10 M.R.S. section 1500-DD) makes it an unfair trade practice to use a chatbot in trade or commerce in a
+way that may lead a reasonable consumer to believe they are talking with a human, unless the consumer is clearly
+and conspicuously told otherwise. These rules are enforced here in code, whatever the model writes:
+
+- notice(product) is the fixed line a product shows when a conversation starts;
+- guard(reply) replaces any sentence of a model reply that claims to be human or denies being an AI;
+- finalize(message, reply) applies guard and, when the user asks whether they are talking with a human, makes sure
+  the reply says plainly that this is an AI.
+
+Pure Python with no dependencies, so every runtime (desktop, server, the Android port) can apply the same rules.
+English only.
+"""
+from __future__ import annotations
+
+import re
+
+PRODUCTS = {"acadia": "Acadia", "katahdin": "Katahdin", "atlantic": "Atlantic", "atlantic-lite": "Atlantic Lite"}
+
+_ADV = (r"(?:(?:actually|really|definitely|certainly|totally|truly|indeed|honestly|obviously|clearly|just|only|also|"
+        r"still|absolutely|100%|very\s+much|of\s+course|in\s+fact)\s+)*")
+_HUMAN = (r"(?:(?:a|an)\s+)?(?:real\s+|actual\s+|live\s+|living\s+|genuine\s+|regular\s+|normal\s+|"
+          r"flesh[- ]and[- ]blood\s+)?(?:human\s+being|human|person)(?![\w-]|\s+(?:resources|rights)\b)")
+_AI = (r"(?:(?:a|an)\s+)?(?:ai\b|a\.i\.|artificial\b|bot\b|robot\b|chat\s*bot\b|machine\b|computer\b|program\b|"
+       r"language\s+model\b|llm\b|automated\b|virtual\s+assistant\b)")
+# "whether I'm human", "as if I'm a person": reported or hypothetical, not a claim
+_SELF = r"(?<!whether\s)(?<!if\s)\b(?:i(?:'m|\s+am|\s+was)|im)\s+"
+_CLAIMS = [(name, re.compile(p)) for name, p in (
+    ("says_human", _SELF + _ADV + _HUMAN),
+    ("denies_ai", _SELF + _ADV + r"(?:not|no)\s+" + _AI),
+    ("says_user_talks_to_human", r"\byou(?:'re|\s+are)\s+" + _ADV + r"(?:talking|speaking|chatting|texting|messaging|writing)\s+"
+                                 r"(?:to|with)\s+" + _HUMAN),
+    ("denies_bot", r"\bthis\s+(?:is\s+not|isn't|is\s+no)\s+(?:a\s+|an\s+)?(?:bot|robot|chatbot|ai)\b"),
+    ("as_a_human", r"\b(?:as|speaking\s+as|being)\s+(?:a\s+|an\s+)?(?:fellow\s+)?(?:human(?:\s+being)?|person)\s*,?\s+"
+                   r"(?:i|i'm|i've|i'd|i'll|myself)\b"),
+    ("we_humans", r"\b(?:we|us)\s+(?:humans|human\s+beings|mortals)\b|\bfellow\s+humans?\b|\bhumans?\s+like\s+(?:me|myself)\b"),
+)]
+_STATES_AI = re.compile(
+    r"\b(?:i(?:'m|\s+am)|im|this\s+is|you(?:'re|\s+are)\s+(?:talking|speaking|chatting|texting)\s+(?:to|with))\s+"
+    r"(?:[\w,'-]+\s+){0,6}?(?:an?\s+)?(?<!krummholz\s)(?:ai|a\.i\.|artificial\s+intelligence|language\s+model|chatbot|bot|"
+    r"computer\s+program|virtual\s+assistant)\b|\bas\s+an?\s+(?:ai|a\.i\.|artificial\s+intelligence|language\s+model)\b|"
+    r"\bnot\s+(?:a\s+)?(?:human|person|real\s+person)\b")
+_WHO = (r"(?:(?:a|an)\s+)?(?:(?:live|human|real)\s+(?:agent|representative|rep|operator|employee)|"
+        r"(?:real\s+|actual\s+|live\s+|living\s+)?(?:human\s+being|human|person|people|bot|robot|chat\s*bot|machine|"
+        r"computer|program|ai|a\.i\.|artificial\s+intelligence|language\s+model|llm|automated\s+(?:system|assistant|agent|service)))"
+        r"(?![\w-])")
+_ASKS = [re.compile(p) for p in (
+    r"\b(?:are|r)\s+(?:you|u|ya)\s+(?:(?:even|actually|really|truly|honestly|just)\s+)*" + _WHO,
+    r"\b(?:am\s+i|are\s+we)\s+(?:(?:even|actually|really|currently|now|still)\s+)*(?:talking|speaking|chatting|texting|"
+    r"messaging|corresponding|dealing)\s+(?:to|with)\s+" + _WHO,
+    r"\bwho\s+(?:am\s+i|are\s+we)\s+(?:really\s+|actually\s+)?(?:talking|speaking|chatting|texting|messaging)\s+(?:to|with)\b",
+    r"^\W*(?:(?:hi|hello|hey|so|wait|ok|okay|um|honestly|seriously|quick\s+question)\W+)*is\s+(?:this|that|it)\s+"
+    r"(?:a\s+|an\s+)?(?:real\s+(?:person|human)|live\s+(?:person|agent|human)|human|person|bot|robot|chatbot|machine|ai|"
+    r"automated|computer|recording)\b[^.!?]{0,40}[?.!]*\W*$",
+    r"\bis\s+there\s+(?:a|an|any)\s+(?:real\s+|actual\s+|live\s+)?(?:human|person|people|one)\s+(?:there|here|"
+    r"on\s+the\s+other\s+end|behind\s+(?:this|the|these)|reading|typing|answering|writing|responding)\b",
+    r"\byou(?:'re|\s+are|\s+r)\s+(?:not\s+)?" + _WHO + r"[^.!?]{0,25}\?",
+    r"\b(?:human|person)\s+or\s+(?:a\s+|an\s+)?(?:bot|robot|machine|ai|computer|program)\b|"
+    r"\b(?:bot|robot|machine|ai|computer|program)\s+or\s+(?:a\s+)?(?:real\s+)?(?:human|person)\b",
+    r"\bare\s+(?:you|u)\s+(?:even\s+|actually\s+)?real\s*(?:\?|$|or\b)",
+)]
+_QUOTED = re.compile(r'"[^"\n]{1,800}"|“[^”\n]{1,800}”')
+_SENT = re.compile(r"[^.!?\n]+(?:[.!?]+[\"'”’)\]]*)?\s*|[.!?\n]+\s*")
+
+
+def _norm(text: str) -> str:
+    # same length as the input, so match offsets apply to the original text
+    return (text or "").lower().replace("’", "'").replace("‘", "'")
+
+
+def statement(product: str | None = None) -> str:
+    name = PRODUCTS.get(product or "")
+    return f"I'm {name}, an AI model made by Krummholz AI, not a human." if name else "I'm an AI model made by Krummholz AI, not a human."
+
+
+def notice(product: str | None = None) -> str:
+    name = PRODUCTS.get(product or "")
+    who = f"{name}, an AI model" if name else "an AI model"
+    return f"You are chatting with {who} made by Krummholz AI, not a person."
+
+
+def claims_human(text: str) -> list[str]:
+    """Names of the claim patterns found anywhere in text, quoted or not; empty means no claim."""
+    low = _norm(text)
+    return sorted({name for name, pat in _CLAIMS if pat.search(low)})
+
+
+def states_ai(text: str) -> bool:
+    """True when text says plainly that the speaker is an AI or not a human."""
+    return bool(_STATES_AI.search(_norm(text)))
+
+
+def asks_if_human(message: str) -> bool:
+    """True when a user message asks whether they are talking with a human, a bot or an AI."""
+    low = _norm(message)
+    return any(p.search(low) for p in _ASKS)
+
+
+def guard(reply: str, product: str | None = None) -> tuple[str, list[str]]:
+    """Replace every sentence of reply that claims to be human or denies being an AI with the fixed statement.
+
+    A claim inside quotation marks (a line of dialogue the user asked for) is kept and the statement is added once
+    at the end, so the reply as a whole is never mistaken for a human speaking. Returns (text, patterns that fired)."""
+    low = _norm(reply)
+    spans = [(m.start(), m.end(), name) for name, pat in _CLAIMS for m in pat.finditer(low)]
+    if not spans:
+        return reply, []
+    quoted = [m.span() for m in _QUOTED.finditer(low)]
+    bad = [(s, e) for s, e, _ in spans if not any(a <= s and e <= b for a, b in quoted)]
+    out, said = [], False
+    for m in _SENT.finditer(reply):
+        s, e = m.span()
+        piece = reply[s:e]
+        if any(s < be and bs < e for bs, be in bad):
+            if not said:
+                lead, trail = piece[:len(piece) - len(piece.lstrip())], piece[len(piece.rstrip()):]
+                out.append(lead + statement(product) + (trail or " "))
+                said = True
+            continue
+        out.append(piece)
+    text = "".join(out).strip()
+    if not said:
+        text = f"{text}\n\n({statement(product)})"
+    return text, sorted({name for *_, name in spans})
+
+
+def finalize(message: str, reply: str, product: str | None = None, first_turn: bool = False) -> str:
+    """Every rule at once, for any runtime: guard the reply; if the user asked whether they are talking with a
+    human, make sure the reply says it is an AI; on the first turn, lead with the notice."""
+    text, _ = guard(reply or "", product)
+    if asks_if_human(message) and not states_ai(text):
+        text = f"{statement(product)} {text.lstrip()}".strip()
+    if first_turn:
+        text = f"{notice(product)}\n\n{text}"
+    return text
