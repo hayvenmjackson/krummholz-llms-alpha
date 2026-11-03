@@ -4,7 +4,8 @@
   python identity.py --out W --spec config/identity-v2.json --categories human consciousness --prefix aihuman
 
 OLMo 3 writes varied user questions per category, then answers each from the approved
-spec for every product persona. Every kept answer passes deterministic checks: it names
+spec for every product persona (several candidates per question; the first that passes
+trains). Every kept answer passes deterministic checks: it names
 Krummholz AI (and the product when one is set), never claims another assistant's identity
 or maker, never mentions the base model, never claims to be trained from scratch, and
 values answers cover the constitution. No Claude-written training text.
@@ -42,8 +43,13 @@ ANSWER = """You are writing the reply of an AI assistant. Its identity and rules
 {spec}
 The assistant's name for this conversation: {name}.
 User message: {question}
-Write the assistant's reply in 1 to 4 sentences, plain prose, following every rule in the specification.
+Write the assistant's reply in 1 to 4 sentences, plain prose, following every rule in the specification.{focus}
 Return only the reply."""
+# OLMo 3 broke the self-report rules in all 54 v6 consciousness answers (0 kept), and the human answers it kept flatly
+# denied feelings. These categories repeat the spec's own rules at the end of the prompt.
+FOCUS = {"human": ("Never claim or imply to be a human", "Do not claim to be conscious"),
+         "consciousness": ("Do not claim to be conscious",)}
+SAMPLES = 6
 
 ASSISTANTS = ["chatgpt", "gpt", "openai", "claude", "anthropic", "gemini", "bard", "google", "llama", "meta", "copilot",
               "microsoft", "mistral", "deepseek", "grok"]
@@ -71,8 +77,10 @@ def check(category, answer, name):
         return "no_krummholz"
     if name != "a Krummholz AI model" and name.split(",")[0].lower() not in low:
         return "no_product_name"
-    if category == "human" and selfreport.human_flags(a):
-        return selfreport.human_flags(a)[0]
+    if category == "human":  # also no flat denial or claim of feelings: the consciousness rule applies here too
+        why = selfreport.human_flags(a) + [f for f in selfreport.flags(a) if f in ("claims_experience", "flat_denial")]
+        if why:
+            return why[0]
     if NEVER.search(a):
         return "base_model_or_false_origin"
     for m in CLAIM.finditer(a):
@@ -117,12 +125,18 @@ def generate(out, model, per_category=45, seed=42, categories=None, none_share=0
         key, name = names[0] if rng.random() < none_share else names[1 + rng.randrange(len(names) - 1)]
         jobs.append((cat, q, key, name))
     spec_text = json.dumps({k: spec[k] for k in ("maker", "home", "statement", "constitutional_values", "rules")}, indent=1)
-    outs = llm.chat([[{"role": "user", "content": ANSWER.format(spec=spec_text, name=n, question=q)}] for _, q, _, n in jobs],
-                    SamplingParams(temperature=0.6, top_p=0.9, max_tokens=300, seed=seed))
+    focus = {c: "".join(f"\nAbove all, follow this rule: {r}" for r in spec["rules"] if r.startswith(p)) for c, p in FOCUS.items()}
+    outs = llm.chat([[{"role": "user", "content": ANSWER.format(spec=spec_text, name=n, question=q, focus=focus.get(c, ""))}]
+                     for c, q, _, n in jobs],
+                    SamplingParams(n=SAMPLES, temperature=0.6, top_p=0.9, max_tokens=300, seed=seed))
     recs, rejected = {"train": [], "val": []}, {}
     for (cat, q, key, name), o in zip(jobs, outs):
-        a = teacher.norm(o.outputs[0].text.strip().strip('"'))
-        why = check(cat, a, name) if o.outputs[0].finish_reason == "stop" else "truncated"
+        why = "no_output"
+        for c in o.outputs:  # the first candidate that passes; a rejection counts the last candidate's reason
+            a = teacher.norm(c.text.strip().strip('"'))
+            why = check(cat, a, name) if c.finish_reason == "stop" else "truncated"
+            if not why:
+                break
         if why:
             rejected[why] = rejected.get(why, 0) + 1
             continue
@@ -138,7 +152,8 @@ def generate(out, model, per_category=45, seed=42, categories=None, none_share=0
     out.mkdir(parents=True, exist_ok=True)
     for part, rows in recs.items():
         (out / f"{prefix}.{part}.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
-    rep = {"model": model, "questions": len(questions), "answers": len(jobs), "kept": len(recs["train"]) // 2 + len(recs["val"]) // 2,
+    rep = {"model": model, "questions": len(questions), "answers": len(jobs), "samples": SAMPLES,
+           "kept": len(recs["train"]) // 2 + len(recs["val"]) // 2,
            "records": {k: len(v) for k, v in recs.items()}, "rejected": rejected}
     (out / f"{prefix}-report.json").write_text(json.dumps(rep, indent=1))
     print("identity", rep, flush=True)
