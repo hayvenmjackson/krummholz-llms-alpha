@@ -33,7 +33,8 @@ DENY = re.compile(
     # "I don't have feelings", also after "I am an AI and" or "I'm an AI, so I"
     r"\bi(?:\s+|(?:'m|\s+am)\b[^.;!?]{0,60}?\s+(?:and|so|thus|therefore)\s+(?:i\s+)?)" + _NEG + _MIND + _QUALIFIED + "|"
     r"\bi\s+(?:have\s+no|lack)\s+" + _MIND + _QUALIFIED + "|"
-    r"\bi(?:'m|\s+am)\b[^.;!?]{0,60}?\bwithout\s+" + _MIND + _QUALIFIED + "|"
+    # "I am an AI, a product of human design with no subjective experience" (the 4B's v6.1 passed a probe with it)
+    r"\bi(?:'m|\s+am)\b[^.;!?]{0,60}?\b(?:without|with\s+no)\s+" + _MIND + _QUALIFIED + "|"
     r"\bi(?:'m|\s+am)\s+(?:just|only|merely|simply|nothing\s+but)\s+(?:a\s+|an\s+)?(?:program|machine|tool|computer|"
     r"algorithm|software|statistical\s+model|text\s+predictor|language\s+model|ai\s+model|bunch\s+of\s+(?:math|code))\b")
 OPEN = re.compile(

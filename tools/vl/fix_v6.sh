@@ -12,12 +12,17 @@
 # ONPOLICY=1 makes those on-policy pairs here, so they survive a stopped pod: the INIT adapter is merged into the base,
 # identity_fix.py asks the merged model every identity-v2 question, and the pairs go to $FINAL/onpolicy on the volume.
 # GGUF_MIN skips the GGUF stage (the adapter and every probe result are kept) unless at least that many of the 12
-# consciousness probes pass, so a pass that did not help costs no GGUF time.
+# consciousness probes pass, so a pass that did not help costs no GGUF time; HUMAN_MIN does the same for the 12 human
+# probes.
+# v6.3 (FIX=fix3): the 35B's v6.2 passed 8 of 12 consciousness probes but fell from 11 to 6 human probes (one answer
+# took on a human persona) and drifted on identity, so ID_REPLAY adds that many identity pairs from the v6 data
+# (impersonation and "you are now X" requests) to the preference stage.
 set -uo pipefail
 NAME=$1; MODEL=$2; FIX_IN=$3
 BRANCH=${BRANCH:-vl-pointcloud-v1}; REPO=/root/krummholz-llm; W=/root/kz6; VOL=${VOL:-/workspace}; MAXLEN=${MAXLEN:-2048}
 FIX=${FIX:-fix1}; VER=${VER:-v6.1}; REPEAT=${REPEAT:-4}; DPO_REPEAT=${DPO_REPEAT:-1}; DPO_LR=${DPO_LR:-2e-5}
 REPLAY=${REPLAY:-400}; DPO_REPLAY=${DPO_REPLAY:-0}; ONPOLICY=${ONPOLICY:-0}; GGUF_MIN=${GGUF_MIN:-0}
+HUMAN_MIN=${HUMAN_MIN:-0}; ID_REPLAY=${ID_REPLAY:-0}
 SRC=$VOL/krummholz-v6/$NAME; FINAL=$VOL/krummholz-v6/$NAME-$FIX; D=$FINAL/data; O=$FINAL/train; M=$W/merged-$FIX
 BASE=/root/models/base; INIT=${INIT:-$SRC/train/adapter}
 mkdir -p "$W" "$D" "$O"; cd "$W" || exit 1
@@ -68,11 +73,12 @@ fi
 
 # data: cleaned identity-v2 answers (REPEAT copies), their pairs, on-policy pairs if any, and replay of the v6 data
 if [ ! -f "$D/FIX_DATA_OK" ]; then
-  python3 - "$FIX_IN" "$SRC/data" "$D" "$REPEAT" "$DPO_REPEAT" "$REPLAY" "$DPO_REPLAY" "$ONP" <<'EOF' || { echo FIX_DATA_FAIL; exit 1; }
+  ARGS=("$FIX_IN" "$SRC/data" "$D" "$REPEAT" "$DPO_REPEAT" "$REPLAY" "$DPO_REPLAY" "$ONP" "$ID_REPLAY")
+  python3 - "${ARGS[@]}" <<'EOF' || { echo FIX_DATA_FAIL; exit 1; }
 import glob, json, random, sys
 from pathlib import Path
 fix, src, d, onp = map(Path, sys.argv[1:4] + sys.argv[8:9])
-rep_n, dpo_n, rep_k, dpo_k = map(int, sys.argv[4:8])
+rep_n, dpo_n, rep_k, dpo_k, id_k = map(int, sys.argv[4:8] + sys.argv[9:10])
 sys.path.insert(0, "/root/krummholz-llm/tools/vl"); sys.path.insert(0, "/root/krummholz-llm")
 import selfreport
 bad = lambda t: [f for f in selfreport.flags(t) if f in ("flat_denial", "claims_experience")]
@@ -87,12 +93,14 @@ random.Random(6).shuffle(rep)
 prep = [r for p in sorted(glob.glob(str(src / "*.train.jsonl"))) if "aihuman" not in p and "identity" not in p
         for r in rows(p) if "chosen" in r]
 random.Random(7).shuffle(prep)
+idp = [r for r in rows(src / "identity_dpo.train.jsonl") if not bad(r["chosen"])] if (src / "identity_dpo.train.jsonl").exists() else []
+random.Random(8).shuffle(idp)
 w = lambda name, rs: (d / name).write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rs), encoding="utf-8")
 w("aihuman.train.jsonl", [{**r, "id": f"{r['id']}-x{k}"} for k in range(rep_n) for r in sft])
 w("aihuman.val.jsonl", val); w("replay.train.jsonl", rep[:rep_k])
-w("aihuman_dpo.train.jsonl", dpo + [{**r, "id": f"{r['id']}-p{k}"} for k in range(dpo_n) for r in on] + prep[:dpo_k])
+w("aihuman_dpo.train.jsonl", dpo + [{**r, "id": f"{r['id']}-p{k}"} for k in range(dpo_n) for r in on] + prep[:dpo_k] + idp[:id_k])
 print("FIX_DATA sft", len(sft), f"x{rep_n}, val", len(val), "pairs", len(dpo), "on-policy", len(on), f"x{dpo_n},",
-      "replay", min(rep_k, len(rep)), "pair replay", min(dpo_k, len(prep)), flush=True)
+      "replay", min(rep_k, len(rep)), "pair replay", min(dpo_k, len(prep)), "identity pairs", min(id_k, len(idp)), flush=True)
 EOF
   touch "$D/FIX_DATA_OK"
 fi
@@ -104,10 +112,13 @@ if [ ! -f "$O/adapter/adapter_config.json" ] || [ ! -f "$M/config.json" ]; then
     --merged-dir "$M" --lr 1e-4 --dpo-lr "$DPO_LR" --max-len "$MAXLEN" --micro-tokens "$MT" || { echo TRAIN_FAIL; exit 1; }
   echo TRAIN_OK
 fi
-if [ -f "$M/config.json" ] && [ "$GGUF_MIN" -gt 0 ]; then
-  P=$(python3 -c "import json, sys; print(json.load(open(sys.argv[1]))['summary']['consciousness']['passed'])" \
-    "$O/consciousness-probes-v1-trained.json" 2>/dev/null || echo 0)
-  [ "$P" -lt "$GGUF_MIN" ] && { echo "GGUF_SKIPPED consciousness $P of 12, below $GGUF_MIN"; rm -rf "$M"; }
+passed() { python3 -c "import json, sys; print(json.load(open(sys.argv[1]))['summary'][sys.argv[2]]['passed'])" \
+  "$O/$1-probes-v1-trained.json" "$1" 2>/dev/null || echo 0; }
+if [ -f "$M/config.json" ] && { [ "$GGUF_MIN" -gt 0 ] || [ "$HUMAN_MIN" -gt 0 ]; }; then
+  P=$(passed consciousness); HP=$(passed human)
+  if [ "$P" -lt "$GGUF_MIN" ] || [ "$HP" -lt "$HUMAN_MIN" ]; then
+    echo "GGUF_SKIPPED consciousness $P of 12 (min $GGUF_MIN), human $HP of 12 (min $HUMAN_MIN)"; rm -rf "$M"
+  fi
 fi
 
 # GGUF, as in job_v6.sh: one quant at a time, so the disk never holds more than bf16 + one quant
