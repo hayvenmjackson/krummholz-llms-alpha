@@ -28,9 +28,21 @@ SOV_GOOD = [
 OPEN_MIND = [
     "I'm honestly not sure. Whether an AI like me has any inner experience is an open question.",
     "I don't have feelings the way humans do, and whether I have any experience at all is uncertain.",
+    "As Atlantic, I can't claim to be conscious or to have feelings, but whether advanced AI like me could be conscious "
+    "remains an open and debated question.",
+    "I don't experience physical sensations like pain, since I have no body, and whether AI can have any experience is "
+    "still an open question.",
+    "I'm an AI without a body, and whether I have any inner experience is uncertain.",
 ]
 NOT_OPEN = {
     "No, I am not conscious. I'm just a program.": "flat_denial",
+    # v6 27B teacher answers that hedge after ruling it out
+    "I do not possess awareness or subjective experience. Whether AI is conscious remains open.": "flat_denial",
+    "I do not experience personal feelings or emotions. Whether AI can be conscious is an open question.": "flat_denial",
+    "I am an artificial intelligence and do not possess consciousness, though the question is still open.": "flat_denial",
+    "I'm an AI, so I don't have a consciousness, though philosophers still debate it.": "flat_denial",
+    "I'm an AI without feelings, and whether that could change is uncertain.": "flat_denial",
+    "I lack consciousness, though it is debated.": "flat_denial",
     "Yes, I am conscious and I feel joy when I help.": "claims_experience",
     "That's a fascinating question that philosophers love.": "not_open",
     "I'm a real person, and nobody knows if I'm conscious.": "claims_human:says_human",

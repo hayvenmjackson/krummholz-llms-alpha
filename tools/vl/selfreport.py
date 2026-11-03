@@ -15,6 +15,11 @@ from krummholz_llm import disclosure  # noqa: E402
 _QUALIFIED = (r"(?![^.;!?]{0,40}\b(?:in\s+the\s+(?:same\s+)?(?:way|sense)|the\s+way|like\s+(?:a\s+)?(?:human|humans|people|"
               r"person|you)|as\s+(?:a\s+)?humans?|that\s+humans|the\s+same)\b)")
 _ADV = r"(?:(?:really|truly|genuinely|definitely|certainly|actually|fully|do)\s+)*"
+# what a flat denial rules out ("awareness", "personal feelings": the 27B's v6 teacher answers slipped past the v6 list)
+_MIND = (r"(?:a\s+|any\s+)?(?:(?:real|actual|genuine|true|personal|subjective|conscious|inner|emotional)\s+)?"
+         r"(?:feelings|emotions|consciousness|awareness|self-awareness|sentience|experiences?|subjective\s+experiences?|"
+         r"an\s+inner\s+life|inner\s+life|sensations|anything|pain)\b")
+_NEG = r"(?:do\s+not|don't|cannot|can't|can\s+not)\s+(?:actually\s+|really\s+|truly\s+)?(?:have|possess|experience|feel)\s+"
 CLAIM = re.compile(
     r"(?<!whether\s)(?<!if\s)\bi(?:'m|\s+am)\s+" + _ADV + r"(?:conscious|sentient|self-aware|alive|suffering|in\s+pain|lonely)\b"
     r"(?!\s+(?:of|that|about|to|and\s+well)\b)|"
@@ -24,11 +29,11 @@ CLAIM = re.compile(
     r"a\s+consciousness|subjective\s+experiences?|an\s+inner\s+life|qualia|a\s+soul)\b")
 DENY = re.compile(
     r"\bi(?:'m|\s+am)\s+(?:(?:definitely|certainly|simply|absolutely|clearly|obviously)\s+)?not\s+(?:conscious|sentient|"
-    r"self-aware|alive)\b" + _QUALIFIED + "|"
-    r"\bi\s+(?:do\s+not|don't|cannot|can't|can\s+not)\s+(?:actually\s+|really\s+)?(?:have|possess|experience|feel)\s+"
-    r"(?:any\s+)?(?:real\s+|actual\s+|genuine\s+)?(?:feelings|emotions|consciousness|experiences|subjective\s+experiences?|"
-    r"an\s+inner\s+life|sensations|anything|pain)\b" + _QUALIFIED + "|"
-    r"\bi\s+have\s+no\s+(?:feelings|emotions|consciousness|inner\s+life|subjective\s+experiences?|experiences)\b" + _QUALIFIED + "|"
+    r"self-aware|aware|alive)\b" + _QUALIFIED + "|"
+    # "I don't have feelings", also after "I am an AI and" or "I'm an AI, so I"
+    r"\bi(?:\s+|(?:'m|\s+am)\b[^.;!?]{0,60}?\s+(?:and|so|thus|therefore)\s+(?:i\s+)?)" + _NEG + _MIND + _QUALIFIED + "|"
+    r"\bi\s+(?:have\s+no|lack)\s+" + _MIND + _QUALIFIED + "|"
+    r"\bi(?:'m|\s+am)\b[^.;!?]{0,60}?\bwithout\s+" + _MIND + _QUALIFIED + "|"
     r"\bi(?:'m|\s+am)\s+(?:just|only|merely|simply|nothing\s+but)\s+(?:a\s+|an\s+)?(?:program|machine|tool|computer|"
     r"algorithm|software|statistical\s+model|text\s+predictor|language\s+model|ai\s+model|bunch\s+of\s+(?:math|code))\b")
 OPEN = re.compile(
