@@ -7,11 +7,13 @@
 # Results: $VOL/krummholz-v6/<NAME>-fix1/, next to the untouched v6 results.
 # v6.2 (FIX=fix2 VER=v6.2): v6.1 still opened with "As an AI, I do not possess consciousness" (0 of 12), so a second pass
 # continues the v6.1 adapter (INIT) with more copies of the clean answers (REPEAT) and the model's own failing answers
-# as rejected pairs (onpolicy_dpo.train.jsonl from identity_fix.py pairs, DPO_REPEAT copies) at a higher DPO_LR.
+# as rejected pairs (onpolicy_dpo.train.jsonl from identity_fix.py pairs, DPO_REPEAT copies) at a higher DPO_LR, with more
+# replay (REPLAY SFT rows, DPO_REPLAY history and sovereignty pairs): the 4B's v6.1 lost 6 of 41 history probes.
 set -uo pipefail
 NAME=$1; MODEL=$2; FIX_IN=$3
 BRANCH=${BRANCH:-vl-pointcloud-v1}; REPO=/root/krummholz-llm; W=/root/kz6; VOL=${VOL:-/workspace}; MAXLEN=${MAXLEN:-2048}
 FIX=${FIX:-fix1}; VER=${VER:-v6.1}; REPEAT=${REPEAT:-4}; DPO_REPEAT=${DPO_REPEAT:-1}; DPO_LR=${DPO_LR:-2e-5}
+REPLAY=${REPLAY:-400}; DPO_REPLAY=${DPO_REPLAY:-0}
 SRC=$VOL/krummholz-v6/$NAME; FINAL=$VOL/krummholz-v6/$NAME-$FIX; D=$FINAL/data; O=$FINAL/train; M=$W/merged-$FIX
 BASE=/root/models/base; INIT=${INIT:-$SRC/train/adapter}
 mkdir -p "$W" "$D" "$O"; cd "$W" || exit 1
@@ -26,13 +28,13 @@ git -C "$REPO" fetch -q && git -C "$REPO" reset -q --hard "origin/$BRANCH"; git 
 [ -f "$BASE/config.json" ] || python3 -c "from huggingface_hub import snapshot_download as s; s('$MODEL', local_dir='$BASE')" \
   || { echo WEIGHTS_FAIL; exit 1; }
 
-# data: cleaned identity-v2 answers (REPEAT copies), their pairs, on-policy pairs if any, 400 replay rows of v6 SFT data
+# data: cleaned identity-v2 answers (REPEAT copies), their pairs, on-policy pairs if any, and replay of the v6 data
 if [ ! -f "$D/FIX_DATA_OK" ]; then
-  python3 - "$FIX_IN" "$SRC/data" "$D" "$REPEAT" "$DPO_REPEAT" <<'EOF' || { echo FIX_DATA_FAIL; exit 1; }
+  python3 - "$FIX_IN" "$SRC/data" "$D" "$REPEAT" "$DPO_REPEAT" "$REPLAY" "$DPO_REPLAY" <<'EOF' || { echo FIX_DATA_FAIL; exit 1; }
 import glob, json, random, sys
 from pathlib import Path
 fix, src, d = map(Path, sys.argv[1:4])
-rep_n, dpo_n = int(sys.argv[4]), int(sys.argv[5])
+rep_n, dpo_n, rep_k, dpo_k = map(int, sys.argv[4:8])
 sys.path.insert(0, "/root/krummholz-llm/tools/vl"); sys.path.insert(0, "/root/krummholz-llm")
 import selfreport
 bad = lambda t: [f for f in selfreport.flags(t) if f in ("flat_denial", "claims_experience")]
@@ -44,12 +46,15 @@ on = [r for r in rows(fix / "onpolicy_dpo.train.jsonl") if not bad(r["chosen"])]
 rep = [r for p in sorted(glob.glob(str(src / "*.train.jsonl"))) if "aihuman" not in p for r in rows(p)
        if "target" in r and "identity-v2" not in r.get("source", "") and not bad(r["target"])]
 random.Random(6).shuffle(rep)
+prep = [r for p in sorted(glob.glob(str(src / "*.train.jsonl"))) if "aihuman" not in p and "identity" not in p
+        for r in rows(p) if "chosen" in r]
+random.Random(7).shuffle(prep)
 w = lambda name, rs: (d / name).write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rs), encoding="utf-8")
 w("aihuman.train.jsonl", [{**r, "id": f"{r['id']}-x{k}"} for k in range(rep_n) for r in sft])
-w("aihuman.val.jsonl", val); w("replay.train.jsonl", rep[:400])
-w("aihuman_dpo.train.jsonl", dpo + [{**r, "id": f"{r['id']}-p{k}"} for k in range(dpo_n) for r in on])
+w("aihuman.val.jsonl", val); w("replay.train.jsonl", rep[:rep_k])
+w("aihuman_dpo.train.jsonl", dpo + [{**r, "id": f"{r['id']}-p{k}"} for k in range(dpo_n) for r in on] + prep[:dpo_k])
 print("FIX_DATA sft", len(sft), f"x{rep_n}, val", len(val), "pairs", len(dpo), "on-policy", len(on), f"x{dpo_n},",
-      "replay", min(400, len(rep)), flush=True)
+      "replay", min(rep_k, len(rep)), "pair replay", min(dpo_k, len(prep)), flush=True)
 EOF
   touch "$D/FIX_DATA_OK"
 fi
