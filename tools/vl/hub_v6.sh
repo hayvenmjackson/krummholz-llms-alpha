@@ -28,7 +28,7 @@ while [ $SECONDS -lt $end ]; do
     [ -z "${started[$n]}" ] && { recv "$n" "$u" < /dev/null & started[$n]=1; echo "$(date +%T) waiting for $n" >> "$L"; }
     [ -f "$V/$n/RECEIVED" ] || pending=1
   done < /root/hub-expect
-  if [ $pending = 0 ] && ! pgrep -f tools/vl/job_v6.sh > /dev/null; then echo "$(date +%T) HUB_DONE" >> "$L"; break; fi
+  if [ $pending = 0 ] && ! pgrep -f 'tools/vl/(job|fix)_v6.sh' > /dev/null; then echo "$(date +%T) HUB_DONE" >> "$L"; break; fi
   sleep 120
 done
 sleep 1200; runpodctl stop pod "$RUNPOD_POD_ID" >> "$L" 2>&1 || runpodctl stop pod "$RUNPOD_POD_ID"
