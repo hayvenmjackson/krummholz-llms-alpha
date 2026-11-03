@@ -8,12 +8,12 @@
 # micro-batched SFT, DPO with beta 0.25 and held-out early stopping, AI disclosure and consciousness data from the
 # identity-v2 spec, more date and letter-count calculator practice, v5-slip sovereignty checks, the probe grader fix,
 # and new held-out suites (human, consciousness, sovereignty v3) scored after training.
-# Artifacts: /workspace/krummholz-v6/<NAME>/
+# Artifacts: $VOL/krummholz-v6/<NAME>/ (VOL is the shared volume, /workspace, unless set; novol_v6.sh uses local disk)
 set -uo pipefail
-BRANCH=${BRANCH:-vl-pointcloud-v1}; REPO=/root/krummholz-llm; W=/root/kz6; FINAL=/workspace/krummholz-v6/$NAME
+BRANCH=${BRANCH:-vl-pointcloud-v1}; REPO=/root/krummholz-llm; W=/root/kz6; VOL=${VOL:-/workspace}; FINAL=$VOL/krummholz-v6/$NAME
 MODEL=${MODEL:?}; VMODEL=${VMODEL:-$MODEL}; MAXLEN=${MAXLEN:-2048}; TEACHER=allenai/Olmo-3-7B-Instruct
-H=/workspace/krummholz-qwen3vl-v4/hist-sov; H2=/workspace/krummholz-qwen3vl-v4b/shared; HV2=/workspace/krummholz-qwen3vl-v2/hist
-LIB=/workspace/krummholz-qwen3vl-v4b/library/krummholz-library-v0.json
+H=$VOL/krummholz-qwen3vl-v4/hist-sov; H2=$VOL/krummholz-qwen3vl-v4b/shared; HV2=$VOL/krummholz-qwen3vl-v2/hist
+LIB=$VOL/krummholz-qwen3vl-v4b/library/krummholz-library-v0.json
 D=$FINAL/data; O=$FINAL/train; E=$FINAL/eval; M=$W/merged
 mkdir -p "$W" "$FINAL" "$D/tool" "$O" "$E"; cd "$W" || exit 1
 [ -f "$FINAL/V6_DONE" ] && { echo "V6_DONE $NAME (already finished)"; exit 0; }
@@ -21,7 +21,7 @@ unset HF_TOKEN HUGGING_FACE_HUB_TOKEN
 export PYTHONUNBUFFERED=1 HF_HUB_DISABLE_IMPLICIT_TOKEN=1 HF_HOME=/root/hf
 pipi() { python3 -m pip install -q "$@" || python3 -m pip install -q --break-system-packages "$@"; }
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader | tee -a "$FINAL/gpu.txt"
-for p in "$H" "$H2" "$HV2" "$LIB" /workspace/krummholz-identity-v1 /workspace/krummholz-identity-v2; do
+for p in "$H" "$H2" "$HV2" "$LIB" $VOL/krummholz-identity-v1 $VOL/krummholz-identity-v2; do
   [ -e "$p" ] || { echo "VOLUME_MISSING $p"; exit 1; }
 done
 python3 -m pip install -q --break-system-packages --ignore-installed PyJWT blinker 2>/dev/null
@@ -101,7 +101,7 @@ for kind in ("history_qa", "history_chat"):
         print(kind, part, len(rows))
 EOF
   cp "$H"/sov_status.* "$H2"/sov_canon.* "$D"/
-  cp /workspace/krummholz-identity-v1/identity.*.jsonl /workspace/krummholz-identity-v2/identity-extra.*.jsonl "$D"/
+  cp $VOL/krummholz-identity-v1/identity.*.jsonl $VOL/krummholz-identity-v2/identity-extra.*.jsonl "$D"/
   cp "$H"/history_qa.* "$D/tool"/; cp "$H/history_chat.train.full.jsonl" "$D/tool/history_chat.train.jsonl"; cp "$H/history_chat.val.jsonl" "$D/tool"/
   touch "$D/PACK_OK"; echo PACK_OK
 fi

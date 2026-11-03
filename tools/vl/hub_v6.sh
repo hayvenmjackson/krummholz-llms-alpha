@@ -31,4 +31,4 @@ while [ $SECONDS -lt $end ]; do
   if [ $pending = 0 ] && ! pgrep -f tools/vl/job_v6.sh > /dev/null; then echo "$(date +%T) HUB_DONE" >> "$L"; break; fi
   sleep 120
 done
-sleep 1200; runpodctl stop pod "$RUNPOD_POD_ID" >> "$L" 2>&1
+sleep 1200; runpodctl stop pod "$RUNPOD_POD_ID" >> "$L" 2>&1 || runpodctl stop pod "$RUNPOD_POD_ID"
