@@ -18,8 +18,11 @@ are answered.
 
 ## Open questions
 
-1. **Which 35B base?** "35B-V3R" matches no model on Hugging Face. This plan assumes
-   Qwen/Qwen3.6-35B-A3B, the 35B used in v5. A link settles it.
+1. **Which 35B base?** Hayven: "the latest MoE from Qwen". Checked on Hugging Face November 3, 2026:
+   the newest general-purpose 35B MoE is Qwen/Qwen3.6-35B-A3B (April 15, 2026), the v5 35B. The only
+   newer 35B, Qwen-AgentWorld-35B-A3B (June 2026), simulates agent environments rather than acting as
+   an assistant. The newest Qwen MoE overall, Qwen3.8-Flash-Next (August 2026), is 125B with a custom
+   license and was excluded in v5. This plan uses Qwen3.6-35B-A3B.
 2. **One 35B core with two product adapters** (recommended), or two full 35B runs? The core gets the
    v6 training once (accuracy, tools, identity); Acadia and Katahdin are then separately trained LoRA
    adapters on it. This is the signed core plus product adapters of ADR-004, so it also delivers the
