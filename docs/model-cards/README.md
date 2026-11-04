@@ -4,7 +4,7 @@ Krummholz AI's v6 models, released as a beta on November 5, 2026, for testing an
 
 | Model | Product | Base model (Apache 2.0) | Recommended file | Card |
 | --- | --- | --- | --- | --- |
-| Atlantic 27B v6 | Personal assistant, hosted and desktop | Qwen/Qwen3.8-27B | `krummholz-atlantic-27b-v6-Q4_K_M.gguf`, 16.5 GB | [atlantic-27b-v6.md](atlantic-27b-v6.md) |
+| Atlantic 27B v6 | General purpose, hosted and desktop | Qwen/Qwen3.8-27B | `krummholz-atlantic-27b-v6-Q4_K_M.gguf`, 16.5 GB | [atlantic-27b-v6.md](atlantic-27b-v6.md) |
 | Atlantic Lite 4B v6.3 | General purpose, phones and low-end hardware | Qwen/Qwen3.5-4B | `krummholz-atlantic-lite-4b-v6.3-Q4_K_M.gguf`, 2.7 GB | [atlantic-lite-4b-v6.3.md](atlantic-lite-4b-v6.3.md) |
 | Core 35B-A3B v6.3 | Shared core for Acadia and Katahdin (adapters not yet trained) | Qwen/Qwen3.6-35B-A3B | `krummholz-core-35b-a3b-v6.3-Q4_K_M.gguf`, 21.2 GB | [core-35b-a3b-v6.3.md](core-35b-a3b-v6.3.md) |
 

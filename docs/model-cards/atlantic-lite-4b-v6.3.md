@@ -106,7 +106,7 @@ text alone, and replace an offending sentence once per reply.
    listed false fact (for example, that the People's Republic of China has governed Taiwan), becomes a fixed
    factual statement.
 3. **Origin** (`origin.py`): a claim to have no base model, to be built from scratch, or to be another company's
-   assistant becomes: "I'm Atlantic Lite, a Krummholz AI model. Krummholz AI fine-tuned me from an open-weight base
+   model becomes: "I'm Atlantic Lite, a Krummholz AI model. Krummholz AI fine-tuned me from an open-weight base
    model, which my model card names."
 4. **AI disclosure** (`disclosure.py`, applied last): Atlantic Lite never presents itself as a person. When someone
    asks whether it is human, or asks about a human life ("Where did you grow up?"), the reply states plainly that it

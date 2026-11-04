@@ -6,7 +6,7 @@ are answered.
 ## Decisions (Hayven, November 3, 2026)
 
 - Train all three bases again.
-- **Atlantic** = the 27B dense (Qwen3.8-27B): personal assistant, hosted and desktop.
+- **Atlantic** = the 27B dense (Qwen3.8-27B): general purpose, hosted and desktop.
 - **Atlantic Lite** = the 4B (Qwen3.5-4B): general purpose, phones and low-end local hardware.
 - **Acadia** (customer service) and **Katahdin** (forestry and fisheries) both come from the 35B
   mixture-of-experts base and are trained separately from here on, as the website describes them.
@@ -104,7 +104,7 @@ near 0.4. v6 raises DPO beta from 0.1 and stops when validation loss stops impro
   sentence it rejects with a fixed factual statement (the "since 1949" and "about 110 countries"
   slips); `disclosure.py` now also gives a plain AI statement when a question asks about a human life
   ("Where did you grow up?"); `krummholz_llm/origin.py` replaces false-origin claims ("not based on
-  any model", "built from scratch") and claims to be another company's assistant.
+  any model", "built from scratch") and claims to be another company's model.
   `krummholz_llm/guards.py` applies all four in one order (stance, sovereignty, origin, then
   disclosure, which has the last word) for every runtime, and `python tools/vl/probes.py results.json
   suite.json --runtime PRODUCT` scores answers as a person sees them. The guards were written after

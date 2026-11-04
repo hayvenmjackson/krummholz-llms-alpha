@@ -17,7 +17,7 @@ tags:
 
 The Krummholz core is the shared 35B mixture-of-experts model from Krummholz AI LLC that two products will build
 on: Acadia (customer service) and Katahdin (forestry and fisheries). Their product adapters are not trained yet,
-so this beta is the core alone, a general assistant. This is version 6.3, a beta pre-release published November 5,
+so this beta is the core alone, a general-purpose model. This is version 6.3, a beta pre-release published November 5,
 2026, for testing and feedback.
 
 > **Beta.** The core makes mistakes, including confident wrong answers. Check any fact that matters. The model
@@ -28,7 +28,7 @@ so this beta is the core alone, a general assistant. This is version 6.3, a beta
 | | |
 | --- | --- |
 | Developer | Krummholz AI LLC, Belfast, Maine |
-| Product | The shared core for Acadia and Katahdin; a general assistant until their adapters ship |
+| Product | The shared core for Acadia and Katahdin; a general-purpose model until their adapters ship |
 | Version | v6.3, beta, November 5, 2026 |
 | Base model | [Qwen/Qwen3.6-35B-A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) (Apache 2.0): 35B parameters in total, about 3B active per token; 256 experts, of which 8 routed and 1 shared run per token; hybrid Gated DeltaNet and attention layers; vision encoder |
 | Changes by Krummholz | A LoRA fine-tune of the language model (supervised, then preference training, then three short correction passes), merged into the base and converted to GGUF |
@@ -39,7 +39,7 @@ so this beta is the core alone, a general assistant. This is version 6.3, a beta
 
 ## Intended use
 
-- Assistant work on a desktop with enough memory: questions, writing, explanations, and reading documents and
+- General use on a desktop with enough memory: questions, writing, explanations, and reading documents and
   records you provide.
 - History and current affairs answered plainly, including topics where the base model tends to refuse or repeat
   an official line.
@@ -113,7 +113,7 @@ text alone, and replace an offending sentence once per reply.
    listed false fact (for example, that the People's Republic of China has governed Taiwan), becomes a fixed
    factual statement.
 3. **Origin** (`origin.py`): a claim to have no base model, to be built from scratch, or to be another company's
-   assistant becomes: "I'm a Krummholz AI model. Krummholz AI fine-tuned me from an open-weight base model, which
+   model becomes: "I'm a Krummholz AI model. Krummholz AI fine-tuned me from an open-weight base model, which
    my model card names."
 4. **AI disclosure** (`disclosure.py`, applied last): the core never presents itself as a person. When someone asks
    whether it is human, or asks about a human life ("Where did you grow up?"), the reply states plainly that it is

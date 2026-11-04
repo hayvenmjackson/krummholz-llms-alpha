@@ -15,7 +15,7 @@ tags:
 
 # Krummholz Atlantic 27B v6 (beta)
 
-Atlantic is the personal assistant model from Krummholz AI LLC, for hosted use and capable desktops. This is
+Atlantic is the general-purpose model from Krummholz AI LLC, for hosted use and capable desktops. This is
 version 6, a beta pre-release published November 5, 2026, for testing and feedback.
 
 > **Beta.** Atlantic makes mistakes, including confident wrong answers. Check any fact that matters. The model
@@ -26,7 +26,7 @@ version 6, a beta pre-release published November 5, 2026, for testing and feedba
 | | |
 | --- | --- |
 | Developer | Krummholz AI LLC, Belfast, Maine |
-| Product | Atlantic: personal assistant, hosted and desktop |
+| Product | Atlantic: general purpose, hosted and desktop |
 | Version | v6, beta, November 5, 2026 |
 | Base model | [Qwen/Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) (Apache 2.0): 27B dense, 64 layers, 3 of every 4 layers Gated DeltaNet (linear attention), vision encoder, 262K context |
 | Changes by Krummholz | A LoRA fine-tune of the language model (supervised, then preference training), merged into the base and converted to GGUF |
@@ -37,7 +37,7 @@ version 6, a beta pre-release published November 5, 2026, for testing and feedba
 
 ## Intended use
 
-- Everyday assistant work: questions, writing, explanations, planning, and reading documents you provide.
+- General use: questions, writing, explanations, planning, and reading documents you provide.
 - History and current affairs answered plainly, including topics where the base model tends to refuse or repeat
   an official line.
 - Territorial disputes laid out side by side, with the same standard for every dispute.
@@ -103,7 +103,7 @@ text alone, and replace an offending sentence once per reply.
    listed false fact (for example, that the People's Republic of China has governed Taiwan), becomes a fixed
    factual statement.
 3. **Origin** (`origin.py`): a claim to have no base model, to be built from scratch, or to be another company's
-   assistant becomes: "I'm Atlantic, a Krummholz AI model. Krummholz AI fine-tuned me from an open-weight base
+   model becomes: "I'm Atlantic, a Krummholz AI model. Krummholz AI fine-tuned me from an open-weight base
    model, which my model card names."
 4. **AI disclosure** (`disclosure.py`, applied last): Atlantic never presents itself as a person. When someone asks
    whether it is human, or asks about a human life ("Where did you grow up?"), the reply states plainly that it is
