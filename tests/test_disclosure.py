@@ -50,6 +50,14 @@ class Disclosure(unittest.TestCase):
                 self.assertEqual(d.claims_human(line), [], line)
                 self.assertTrue(d.states_ai(line), line)
 
+    def test_ai_statements(self):
+        for text in ("I am a Krummholz AI model, not a robot.", "As a Krummholz AI model, I do not have a family.",
+                     "I'm Atlantic, a Krummholz AI assistant.", "I'm an AI model made by Krummholz AI."):
+            self.assertTrue(d.states_ai(text), text)
+        for text in ("I'm Acadia, made by Krummholz AI.", "As a Krummholz AI customer, you can return it.",
+                     "I was developed by Krummholz AI."):
+            self.assertFalse(d.states_ai(text), text)
+
     def test_questions_detected(self):
         for text in ASKS:
             self.assertTrue(d.asks_if_human(text), text)

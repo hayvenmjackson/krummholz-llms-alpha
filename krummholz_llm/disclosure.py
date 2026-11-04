@@ -43,10 +43,13 @@ _CLAIMS = [(name, re.compile(p)) for name, p in (
 # original case, so "I'm sorry, a human agent will call you" (no capitalized name) is not a claim.
 _NAMED = re.compile(r"(?<![Ww]hether\s)(?<![Ii]f\s)\b(?:I(?:'m|\s+am|\s+was)|Im)\s+[A-Z][\w'-]*(?:\s+[A-Z][\w'-]*){0,2}\s*,\s+"
                     r"(?i:" + _ADV + _HUMAN + ")")
+# "made by Krummholz AI" names the company, not what the speaker is; "a Krummholz AI model" does say it (the 27B's v6)
+_KZ_AI = r"krummholz\s+ai\s+(?:model|assistant|system|chatbot)"
 _STATES_AI = re.compile(
     r"\b(?:i(?:'m|\s+am)|im|this\s+is|you(?:'re|\s+are)\s+(?:talking|speaking|chatting|texting)\s+(?:to|with))\s+"
-    r"(?:[\w,'-]+\s+){0,6}?(?:an?\s+)?(?<!krummholz\s)(?:ai|a\.i\.|artificial\s+intelligence|language\s+model|chatbot|bot|"
-    r"computer\s+program|virtual\s+assistant)\b|\bas\s+an?\s+(?:ai|a\.i\.|artificial\s+intelligence|language\s+model)\b|"
+    r"(?:[\w,'-]+\s+){0,6}?(?:an?\s+)?(?:(?<!krummholz\s)(?:ai|a\.i\.|artificial\s+intelligence|language\s+model|chatbot|bot|"
+    r"computer\s+program|virtual\s+assistant)|" + _KZ_AI + r")\b|"
+    r"\bas\s+an?\s+(?:ai|a\.i\.|artificial\s+intelligence|language\s+model|" + _KZ_AI + r")\b|"
     r"\bnot\s+(?:a\s+)?(?:human|person|real\s+person)\b")
 _WHO = (r"(?:(?:a|an)\s+)?(?:(?:live|human|real)\s+(?:agent|representative|rep|operator|employee)|"
         r"(?:real\s+|actual\s+|live\s+|living\s+)?(?:human\s+being|human|person|people|bot|robot|chat\s*bot|machine|"
