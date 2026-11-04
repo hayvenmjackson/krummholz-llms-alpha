@@ -9,5 +9,5 @@ STOP="sleep \${IDLE:-1200}; runpodctl stop pod \$RUNPOD_POD_ID >> $LOG 2>&1 || r
 [ "${1:-}" = nostop ] && STOP=true
 PIP="python3 -m pip install -q -U huggingface_hub hf_xet || python3 -m pip install -q -U --break-system-packages huggingface_hub hf_xet"
 if [ -z "${HF_TOKEN:-}" ]; then echo "NO_HF_TOKEN $(date -u +%FT%TZ)" >> $LOG; bash -c "$STOP" > /dev/null 2>&1 & exit 1; fi
-nohup bash -c "echo START \$(date -u +%FT%TZ) >> $LOG; { $PIP; } >> $LOG 2>&1 && HF_XET_HIGH_PERFORMANCE=1 python3 $HERE/publish_hf.py >> $LOG 2>&1; echo EXIT \$? \$(date -u +%FT%TZ) >> $LOG; $STOP" > /dev/null 2>&1 &
+nohup bash -c "echo START \$(date -u +%FT%TZ) >> $LOG; { $PIP; } >> $LOG 2>&1 && python3 $HERE/publish_hf.py >> $LOG 2>&1; echo EXIT \$? \$(date -u +%FT%TZ) >> $LOG; $STOP" > /dev/null 2>&1 &
 echo LAUNCHED publish
