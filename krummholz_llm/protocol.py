@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import re
 from typing import Any
 
-from . import disclosure, stance
+from . import guards
 
 PROFILES = frozenset({"acadia", "katahdin", "atlantic"})
 RESERVED = re.compile(r"<\|[^<>]*\|>|\[PAD\]|\[UNK\]")
@@ -170,10 +170,8 @@ def parse_answer(raw: str, request: Request) -> dict[str, Any]:
         raise OutputError("malformed or unrecognized citation markup")
     if RESERVED.search(clean):
         raise OutputError("unexpected reserved token within final answer")
-    # Neither claims nor flatly rules out feelings or consciousness (Krummholz AI's stance: an open question).
-    clean = stance.finalize(request.query, clean)
-    # Never a human claim; a sincere "are you human?" always gets a plain AI answer (Maine 10 M.R.S. section 1500-DD).
-    clean = disclosure.finalize(request.query, clean, request.profile)
+    # Consciousness stance, territorial facts, origin facts, then the AI disclosure, which has the last word.
+    clean = guards.finalize(request.query, clean, request.profile)
     # Text is plain, untrusted text. A future UI must escape it rather than render HTML.
     return {
         "answer": clean,

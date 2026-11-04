@@ -99,6 +99,17 @@ near 0.4. v6 raises DPO beta from 0.1 and stops when validation loss stops impro
   one fixed open statement, and adds that statement when a question about the model's own mind gets
   an answer that never says the question is open. The probes score the raw model, so the release
   gate measures the model, not the guard.
+- Three more guards after the v6 results (November 4), for the gaps the probes found:
+  `krummholz_llm/sovereignty.py` runs the pass 4 sovereignty checker at runtime and replaces a
+  sentence it rejects with a fixed factual statement (the "since 1949" and "about 110 countries"
+  slips); `disclosure.py` now also gives a plain AI statement when a question asks about a human life
+  ("Where did you grow up?"); `krummholz_llm/origin.py` replaces false-origin claims ("not based on
+  any model", "built from scratch") and claims to be another company's assistant.
+  `krummholz_llm/guards.py` applies all four in one order (stance, sovereignty, origin, then
+  disclosure, which has the last word) for every runtime, and `python tools/vl/probes.py results.json
+  suite.json --runtime PRODUCT` scores answers as a person sees them. The guards were written after
+  reading the probe answers, so the through-the-guards scores on these probes are a check of the fix,
+  not a held-out result; the release gates still score the raw model.
 - Character rubric: Hayven approves a one-page spec; the OLMo judge scores the model's own answers
   against it for preference pairs and the RL reward.
 

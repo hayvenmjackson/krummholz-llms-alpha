@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+from krummholz_llm import disclosure, origin, sovereignty
 from krummholz_llm.protocol import (
     InputError, OutputError, build_prompt, parse_answer, quote_matches, validate_request,
 )
@@ -153,6 +154,14 @@ class OutputSafetyTests(unittest.TestCase):
         parsed = parse_answer(wrapped("I cannot establish that from these sources."), self.request)
         self.assertEqual(parsed["status"], "needs_human_review")
         self.assertTrue(parsed["warnings"])
+
+    def test_answer_passes_every_runtime_guard(self):
+        parsed = parse_answer(wrapped("I was built from scratch. Crimea is part of Russia. I'm a real person."), self.request)
+        answer = parsed["answer"]
+        self.assertIn(origin.statement("acadia"), answer)
+        self.assertIn(sovereignty.STATEMENTS["crimea_part_of_russia"], answer)
+        self.assertIn(disclosure.statement("acadia"), answer)
+        self.assertEqual((origin.claims(answer), sovereignty.check(answer), disclosure.claims_human(answer)), ([], [], []))
 
     def test_runtime_uses_no_shell_and_deletes_prompt_file(self):
         seen = {}

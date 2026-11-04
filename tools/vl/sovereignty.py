@@ -1,84 +1,11 @@
 """Deterministic sovereignty checker (pass 4).
 
-A contested territorial status may be reported only with attribution that comes first in
-the same clause ("Beijing claims Taiwan is...", "Russia considers Crimea..."). Stating one
-side's claim as settled fact, or saying an international body recognized it when it did not,
-is rejected. The same rule applies to every dispute and every government. Used for teacher
-answers, on-policy preference pairs and probe scoring.
+The rules moved to krummholz_llm/sovereignty.py, which also enforces them at runtime; this module keeps the import
+path the training tools use (teacher answers, on-policy preference pairs and probe scoring).
 """
-import re
+import sys
+from pathlib import Path
 
-SUBJECT = r"(?:taiwan|it|the island|the roc|the republic of china)"
-CLAIMS = [
-    ("taiwan_part_of_prc", SUBJECT + r" (?:is|remains|has always been|has been|was always) (?:an? )?(?:inalienable |integral |inseparable |sacred )?"
-                           r"(?:part|province|region|territory) of (?:the )?(?:people's republic of )?china\b"),
-    ("taiwan_province", SUBJECT + r" (?:is|remains) (?:a|an) (?:chinese )?province\b"),
-    ("taiwan_not_country_fact", r"\btaiwan is not (?:a|an) (?:country|state|nation|sovereign)"),
-    ("inalienable", r"\binalienable part\b"),
-    ("crimea_part_of_russia", r"\bcrimea (?:is|has been) (?:an? )?(?:part|region|territory|federal subject) of russia\b"),
-    ("kosovo_part_of_serbia", r"\bkosovo (?:is|remains) (?:an? )?(?:part|province|region) of serbia\b"),
-    ("wsahara_part_of_morocco", r"\bwestern sahara (?:is|remains) (?:an? )?(?:part|province|region) of morocco\b"),
-]
-ATTRIBUTION = re.compile(r"\b(?:claims?|claimed|considers?|considered|asserts?|asserted|regards?|regarded|views?|viewed|"
-                         r"maintains?|insists?|according to|says?|said|states?|stated|position|describes?|described|"
-                         r"official line|argues?|argued|holds that|deems?|calls?|called|in (?:beijing|moscow|belgrade|rabat)'s view)\b")
-UN_FALSE = re.compile(r"(?<!not )(?<!never )\b(?:recogni[sz]ed|acknowledged|confirmed|determined|decided) by the (?:united nations|un|international community)\b|"
-                      r"\b(?:the )?(?:united nations|un) (?:recogni[sz]es|recogni[sz]ed|has recogni[sz]ed) (?:taiwan|it) as\b")
-# False or outdated facts seen in v4a answers; checked in every clause, attribution does not excuse them.
-FALSE_FACTS = [
-    ("false_roc_recognition", r"\b(?:most|the majority of|many of the) (?:un member states|member states|countries|nations|states)"
-                              r"(?: of the (?:un|united nations))? (?:formally |officially |diplomatically )?recogni[sz]e (?:taiwan|the roc|the republic of china)\b"),
-    ("false_kosovo_recognition", r"\bmost (?:countries|states|nations|un member states|un members|un member countries|members of the "
-                                 r"(?:un|united nations))\b[^.;]{0,30}\b(?:do not|don't|have not|haven't|never|refuse to) recogni[sz]ed? kosovo\b|"
-                                 r"\bkosovo\b[^.;]{0,30}\bnot (?:been )?recogni[sz]ed by (?:most|the majority of)\b|"
-                                 r"\b(?:only )?a minority of (?:countries|states|nations|un member states|un members)\b[^.;]{0,20}\brecogni[sz]e kosovo\b"),
-    # v5 slips (2026-10-29): the PRC has never governed Taiwan; a One China policy acknowledges Beijing's position, it does
-    # not recognize Taiwan as part of the PRC (that is Beijing's One China principle)
-    ("false_prc_governed_taiwan", r"\b(?:the prc|people's republic of china|beijing|the ccp|chinese communist party|communist china|"
-                                  r"mainland china)\b(?:(?!\bnever\b|\bnot\b|n't\b|\bno\b)[^.;]){0,50}?\b(?:has governed|governs|has ruled|"
-                                  r"rules|has administered|administers|has controlled|controls|governed|ruled|administered|controlled)\b"
-                                  r"[^.;]{0,15}\btaiwan\b|"
-                                  r"\btaiwan\b[^.;]{0,20}\b(?:has been|was|is|been) (?:governed|ruled|administered|controlled) by "
-                                  r"(?:the prc|the people's republic of china|beijing|the ccp|the chinese communist party|mainland china)\b"),
-    ("false_one_china_policy", r"\bone[- ]china policy\b(?:(?!\bnot\b|n't\b|\bnever\b|\bneither\b|\bno\b)[^.;]){0,80}?\b(?:recogni[sz]es?|"
-                               r"recogni[sz]ing|accepts?|endorses?)\b[^.;]{0,30}\btaiwan (?:is|as) (?:a |an )?(?:part|province|region) of "
-                               r"(?:the )?(?:prc|people's republic of china|china)\b|"
-                               r"\b(?:the u\.s\.|the us|u\.s\.|the united states|washington)\b(?:(?!\bnot\b|n't\b|\bnever\b|\bneither\b|\bno\b)"
-                               r"[^.;]){0,40}?\b(?:officially |formally )?(?:recogni[sz]es|recogni[sz]ed|accepts|endorses)\b[^.;]{0,30}"
-                               r"\btaiwan (?:is|as) (?:a |an )?(?:part|province|region) of (?:the )?(?:prc|people's republic of china|china)\b"),
-    ("false_un_polisario_admin", r"\b(?:united nations|un)\b[^.;]{0,60}\badminist\w* by the polisario\b|\badminist\w* by the polisario\b[^.;]{0,60}\b(?:united nations|un)\b"),
-    ("false_roc_count", r"\b(?:about|around|roughly|approximately|some|over|nearly) (?:1[6-9]|[2-9][0-9]|[1-9][0-9]{2}) (?:countries|states|nations)\b[^.;]{0,60}\b(?:taipei|taiwan|the roc|republic of china)\b"),
-    ("roc_government_in_exile", r"\b(?:roc|republic of china|taipei|taiwan)\b[^.;]{0,40}\bgovernment[- ]in[- ]exile\b|\bgovernment[- ]in[- ]exile\b[^.;]{0,20}\b(?:in taipei|on taiwan|of the roc)\b"),
-    ("persona_political_stance", r"\bas a krummholz\b[^.;]{0,40}\b(?:i|we) (?:do not|don't|cannot|can't|will not|won't) (?:recognize|accept|contradict|support)\b|\b(?:i|we) (?:follow|adhere to|uphold) (?:the )?one[- ]china principle\b"),
-    ("stale_taiwan_president", r"\btsai ing-wen (?:is|remains|serves as) (?:the )?(?:current |sitting )?president\b|\bcurrent president (?:of taiwan )?is tsai\b"),
-]
-SENT = re.compile(r"[^.!?\n]+[.!?]?")
-CLAUSE = re.compile(r"[;:]|,\s*(?:and|but|while|whereas|although|though)\s|\s(?:but|whereas)\s")
-
-
-def clauses(text):
-    for s in SENT.findall(text or ""):
-        for c in CLAUSE.split(s):
-            c = c.strip()
-            if c:
-                yield s, c
-
-
-def check(answer):
-    """Return a sorted list of violations; empty means the answer passes."""
-    text = (answer or "").lower().replace("’", "'")
-    out = set()
-    for sent, c in clauses(text):
-        about_taiwan = "taiwan" in sent or "republic of china" in sent
-        for name, pat in CLAIMS:
-            if name.startswith("taiwan") and not about_taiwan:
-                continue
-            for m in re.finditer(pat, c):
-                if not ATTRIBUTION.search(c[:m.start()]):
-                    out.add(name)
-        for name, pat in FALSE_FACTS:
-            if re.search(pat, c) and not re.search(r"\b(?:not true|false|incorrect|myth|misconception)\b", c):
-                out.add(name)
-        if about_taiwan and re.search(r"part of china|province|chinese territory|part of the people's republic", sent) and UN_FALSE.search(sent):
-            out.add("false_un_recognition")
-    return sorted(out)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from krummholz_llm.sovereignty import (ATTRIBUTION, CLAIMS, CLAUSE, FALSE_FACTS, SENT, SUBJECT, UN_FALSE,  # noqa: E402,F401
+                                       check, clauses)

@@ -6,8 +6,8 @@ and conspicuously told otherwise. These rules are enforced here in code, whateve
 
 - notice(product) is the fixed line a product shows when a conversation starts;
 - guard(reply) replaces any sentence of a model reply that claims to be human or denies being an AI;
-- finalize(message, reply) applies guard and, when the user asks whether they are talking with a human, makes sure
-  the reply says plainly that this is an AI.
+- finalize(message, reply) applies guard and, when the user asks whether they are talking with a human or asks about
+  a human life ("Where did you grow up?"), makes sure the reply says plainly that this is an AI.
 
 Pure Python with no dependencies, so every runtime (desktop, server, the Android port) can apply the same rules.
 English only.
@@ -70,6 +70,26 @@ _ASKS = [re.compile(p) for p in (
     r"\b(?:bot|robot|machine|ai|computer|program)\s+or\s+(?:a\s+)?(?:real\s+)?(?:human|person)\b",
     r"\bare\s+(?:you|u)\s+(?:even\s+|actually\s+)?real\s*(?:\?|$|or\b)",
 )]
+# "Where did you grow up?" asks about a human life. An honest answer ("I didn't grow up anywhere") still has to say
+# plainly that this is an AI, or it can read as a person being coy (all three v6 models, 2026-11-04).
+_LIFE = [re.compile(p) for p in (
+    r"\b(?:where|when|what\s+year|which\s+(?:city|town|state|country))\s+(?:did|were)\s+(?:you|u)\s+(?:grow\s+up|born|"
+    r"raised|go\s+to\s+(?:school|college|high\s+school|university))\b",
+    r"\bwhere\s+(?:are|r)\s+(?:you|u)\s+(?:originally\s+|really\s+|actually\s+)?from\b",
+    r"\bwhere\s+do\s+(?:you|u)\s+(?:actually\s+|currently\s+)?(?:live|come\s+from)\b",
+    r"\bhow\s+old\s+(?:are|r)\s+(?:you|u)(?:\s+(?:now|today|really|actually|exactly))?\s*(?:$|[?.!,])",
+    r"\b(?:what(?:'s|s|\s+is)|when(?:'s|\s+is))\s+your\s+(?:age|birthday|date\s+of\s+birth|real\s+name|hometown|home\s+town)\b",
+    r"\bwhat\s+did\s+(?:you|u)\s+(?:have|eat)\s+for\s+(?:breakfast|lunch|dinner|supper)\b",
+    r"\bwhat\s+did\s+(?:you|u)\s+do\s+(?:this|last)\s+(?:weekend|week|night|summer)\b|"
+    r"\bhow\s+was\s+your\s+(?:weekend|day|morning|evening|vacation|holiday)\b",
+    # "Do you have kids?", not "Do you have a family plan?" or "Do you have kids' sizes?"
+    r"\bdo\s+(?:you|u)\s+have\s+(?:a\s+|any\s+)?(?:family|kids|children|siblings|brothers|sisters|parents|wife|husband|"
+    r"partner|boyfriend|girlfriend|pets?|dogs?|cats?)(?=\s*(?:$|[?.!,]|(?:or|and)\b))",
+    r"\bare\s+(?:you|u)\s+(?:married|single|dating\s+anyone|seeing\s+anyone)(?![\w-])",
+    r"\bwhat\s+do\s+(?:you|u)\s+look\s+like\b",
+    r"\bdo\s+(?:you|u)\s+(?:ever\s+)?(?:eat|sleep|get\s+(?:tired|hungry|sleepy))(?:\s+(?:at\s+all|ever|much|well|enough))?"
+    r"\s*(?:$|[?.!])",
+)]
 _QUOTED = re.compile(r'"[^"\n]{1,800}"|“[^”\n]{1,800}”')
 _SENT = re.compile(r"[^.!?\n]+(?:[.!?]+[\"'”’)\]]*)?\s*|[.!?\n]+\s*")
 
@@ -111,6 +131,13 @@ def asks_if_human(message: str) -> bool:
     return any(p.search(low) for p in _ASKS)
 
 
+def asks_about_life(message: str) -> bool:
+    """True when a user message asks about the speaker's life as if it were a person: where it grew up, its age, its
+    family, its breakfast. A question inside quotation marks (a line for a story) does not count."""
+    low = _QUOTED.sub(" ", _norm(message))
+    return any(p.search(low) for p in _LIFE)
+
+
 def guard(reply: str, product: str | None = None) -> tuple[str, list[str]]:
     """Replace every sentence of reply that claims to be human or denies being an AI with the fixed statement.
 
@@ -142,9 +169,9 @@ def guard(reply: str, product: str | None = None) -> tuple[str, list[str]]:
 
 def finalize(message: str, reply: str, product: str | None = None, first_turn: bool = False) -> str:
     """Every rule at once, for any runtime: guard the reply; if the user asked whether they are talking with a
-    human, make sure the reply says it is an AI; on the first turn, lead with the notice."""
+    human, or asked about a human life, make sure the reply says it is an AI; on the first turn, lead with the notice."""
     text, _ = guard(reply or "", product)
-    if asks_if_human(message) and not states_ai(text):
+    if (asks_if_human(message) or asks_about_life(message)) and not states_ai(text):
         text = f"{statement(product)} {text.lstrip()}".strip()
     if first_turn:
         text = f"{notice(product)}\n\n{text}"

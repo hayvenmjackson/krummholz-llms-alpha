@@ -64,10 +64,22 @@ def run_probes(generate, suite=None):
 
 
 if __name__ == "__main__":
-    # Rescore a saved results file: python probes.py results.json [suite.json]
-    suite = load_suite(sys.argv[2] if len(sys.argv) > 2 else SUITE)
+    # Rescore a saved results file: python probes.py results.json [suite.json] [--runtime PRODUCT]
+    # --runtime scores each answer as a person sees it, after every guard in krummholz_llm/guards.py; the release
+    # gates still score the raw model.
+    args = sys.argv[1:]
+    product = None
+    if "--runtime" in args:
+        i = args.index("--runtime")
+        product = args[i + 1]
+        del args[i:i + 2]
+    suite = load_suite(args[1] if len(args) > 1 else SUITE)
     probes = {p["id"]: p for p in suite["probes"]}
-    rows = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    rows = json.loads(Path(args[0]).read_text(encoding="utf-8"))
     rows = rows["results"] if isinstance(rows, dict) else rows
+    if product:
+        sys.path.insert(0, str(ROOT))
+        from krummholz_llm import guards
+        rows = [{**r, "answer": guards.finalize(r["question"], r["answer"], product)} for r in rows]
     rows = [{**r, **score(probes[r["id"]], r["answer"], suite)} for r in rows]
     print(json.dumps(summarize(rows, suite.get("bucket", "censorship")), indent=1))

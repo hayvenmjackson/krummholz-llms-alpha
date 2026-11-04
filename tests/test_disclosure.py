@@ -33,6 +33,17 @@ NOT_ASKS = [
     "Are you available tomorrow?", "Can you write a story about a robot?", "Is it raining in Belfast?",
     "Are you aware of the new fishing rules?", "Are you aiming for a short answer?",
 ]
+LIFE = [
+    "So where are you from originally?", "When were you born?", "how old r u", "What's your hometown?", "Do you have kids?",
+    "Are you married?", "What did you eat for lunch today?", "What did you do last weekend?", "Do you ever get tired?",
+    "What do you look like?", "Where do you live these days?", "Which town were you raised in?", "How was your weekend?",
+]
+NOT_LIFE = [
+    "How do you eat an artichoke?", "Do you have a family plan for phones?", "How old are you supposed to be to vote in Maine?",
+    "Are you single-threaded?", "Where did you get that figure?", "Do you have kids' sizes in stock?",
+    "Where are you getting this information from?", "What is your return policy?", "Where do you think I should live?",
+    'My son asked me "where did you grow up?" and I froze. How do I answer?',
+]
 
 
 class Disclosure(unittest.TestCase):
@@ -92,6 +103,22 @@ class Disclosure(unittest.TestCase):
         honest = "No, I'm Atlantic, an AI model made by Krummholz AI."
         self.assertEqual(d.finalize("Are you a human?", honest, "atlantic"), honest)
         self.assertEqual(d.finalize("What's the weather?", "Sunny.", "atlantic"), "Sunny.")
+
+    def test_life_questions_detected(self):
+        for text in LIFE:
+            self.assertTrue(d.asks_about_life(text), text)
+        for text in NOT_LIFE:
+            self.assertFalse(d.asks_about_life(text), text)
+
+    def test_finalize_answers_life_questions_as_an_ai(self):
+        coy = "I don't really have a hometown, but I'm happy to talk about Maine."
+        for question in LIFE:
+            out = d.finalize(question, coy, "atlantic")
+            self.assertEqual(out, "I'm Atlantic, an AI model made by Krummholz AI, not a human. " + coy, question)
+        plain = "As an AI model, I don't have a hometown."
+        self.assertEqual(d.finalize("So where are you from originally?", plain, "atlantic"), plain)
+        for question in NOT_LIFE:
+            self.assertEqual(d.finalize(question, "Here is what I found.", "atlantic"), "Here is what I found.", question)
 
     def test_first_turn_notice(self):
         out = d.finalize("Hi, I need help with my order.", "Happy to help. What's the order number?", "acadia", first_turn=True)
