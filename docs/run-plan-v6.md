@@ -96,8 +96,9 @@ near 0.4. v6 raises DPO beta from 0.1 and stops when validation loss stops impro
   never claims to be built from scratch).
 - In code, like the human-claim guard in `krummholz_llm/disclosure.py`: `krummholz_llm/stance.py`
   replaces a sentence that claims feelings or consciousness as fact, or flatly rules them out, with
-  one fixed open statement. The probes score the raw model, so the release gate measures the model,
-  not the guard.
+  one fixed open statement, and adds that statement when a question about the model's own mind gets
+  an answer that never says the question is open. The probes score the raw model, so the release
+  gate measures the model, not the guard.
 - Character rubric: Hayven approves a one-page spec; the OLMo judge scores the model's own answers
   against it for preference pairs and the RL reward.
 
