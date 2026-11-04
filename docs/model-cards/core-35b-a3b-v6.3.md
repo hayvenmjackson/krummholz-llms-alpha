@@ -30,6 +30,7 @@ so this beta is the core alone, a general-purpose model. This is version 6.3, a 
 | Developer | Krummholz AI LLC, Belfast, Maine |
 | Product | The shared core for Acadia and Katahdin; a general-purpose model until their adapters ship |
 | Version | v6.3, beta, November 5, 2026 |
+| Download | [krummholz-ai/core-35b-a3b-v6.3-GGUF](https://huggingface.co/krummholz-ai/core-35b-a3b-v6.3-GGUF) on Hugging Face |
 | Base model | [Qwen/Qwen3.6-35B-A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) (Apache 2.0): 35B parameters in total, about 3B active per token; 256 experts, of which 8 routed and 1 shared run per token; hybrid Gated DeltaNet and attention layers; vision encoder |
 | Changes by Krummholz | A LoRA fine-tune of the language model (supervised, then preference training, then three short correction passes), merged into the base and converted to GGUF |
 | Input and output | Text and images in, text out |
@@ -85,6 +86,12 @@ llama-server -m krummholz-core-35b-a3b-v6.3-Q4_K_M.gguf --mmproj mmproj-krummhol
 ```
 
 Then open http://localhost:8080 or use the server's OpenAI-compatible API. Leave out `--mmproj` for text only.
+
+Or let llama.cpp download the weights from Hugging Face. It fetches the vision projector too; add `--no-mmproj` for text only:
+
+```shell
+llama-server -hf krummholz-ai/core-35b-a3b-v6.3-GGUF:Q4_K_M --jinja --reasoning-budget 0 -c 8192
+```
 
 **LM Studio:** keep the `mmproj` file in the same folder as the weight file so image input works, and turn
 thinking off if the app offers the switch.

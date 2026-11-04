@@ -28,6 +28,7 @@ version 6, a beta pre-release published November 5, 2026, for testing and feedba
 | Developer | Krummholz AI LLC, Belfast, Maine |
 | Product | Atlantic: general purpose, hosted and desktop |
 | Version | v6, beta, November 5, 2026 |
+| Download | [krummholz-ai/atlantic-27b-v6-GGUF](https://huggingface.co/krummholz-ai/atlantic-27b-v6-GGUF) on Hugging Face |
 | Base model | [Qwen/Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) (Apache 2.0): 27B dense, 64 layers, 3 of every 4 layers Gated DeltaNet (linear attention), vision encoder, 262K context |
 | Changes by Krummholz | A LoRA fine-tune of the language model (supervised, then preference training), merged into the base and converted to GGUF |
 | Input and output | Text and images in, text out |
@@ -77,6 +78,12 @@ llama-server -m krummholz-atlantic-27b-v6-Q4_K_M.gguf --mmproj mmproj-krummholz-
 ```
 
 Then open http://localhost:8080 or use the server's OpenAI-compatible API. Leave out `--mmproj` for text only.
+
+Or let llama.cpp download the weights from Hugging Face. It fetches the vision projector too; add `--no-mmproj` for text only:
+
+```shell
+llama-server -hf krummholz-ai/atlantic-27b-v6-GGUF:Q4_K_M --jinja --reasoning-budget 0 -c 8192
+```
 
 **LM Studio:** keep the `mmproj` file in the same folder as the weight file so image input works, and turn
 thinking off if the app offers the switch.

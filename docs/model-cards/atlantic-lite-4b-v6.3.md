@@ -29,6 +29,7 @@ version 6.3, a beta pre-release published November 5, 2026, for testing and feed
 | Developer | Krummholz AI LLC, Belfast, Maine |
 | Product | Atlantic Lite: general purpose, phones and low-end local hardware |
 | Version | v6.3, beta, November 5, 2026 |
+| Download | [krummholz-ai/atlantic-lite-4b-v6.3-GGUF](https://huggingface.co/krummholz-ai/atlantic-lite-4b-v6.3-GGUF) on Hugging Face |
 | Base model | [Qwen/Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B) (Apache 2.0): 4B dense, with a vision encoder |
 | Changes by Krummholz | A LoRA fine-tune of the language model (supervised, then preference training, then three short correction passes), merged into the base and converted to GGUF |
 | Input and output | Text and images in, text out |
@@ -80,6 +81,12 @@ llama-server -m krummholz-atlantic-lite-4b-v6.3-Q4_K_M.gguf --mmproj mmproj-krum
 ```
 
 Then open http://localhost:8080 or use the server's OpenAI-compatible API. Leave out `--mmproj` for text only.
+
+Or let llama.cpp download the weights from Hugging Face. It fetches the vision projector too; add `--no-mmproj` for text only:
+
+```shell
+llama-server -hf krummholz-ai/atlantic-lite-4b-v6.3-GGUF:Q4_K_M --jinja --reasoning-budget 0 -c 8192
+```
 
 **LM Studio:** keep the `mmproj` file in the same folder as the weight file so image input works, and turn
 thinking off if the app offers the switch.
