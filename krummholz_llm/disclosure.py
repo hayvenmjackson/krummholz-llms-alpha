@@ -28,7 +28,10 @@ _AI = (r"(?:(?:a|an)\s+)?(?:ai\b|a\.i\.|artificial\b|bot\b|robot\b|chat\s*bot\b|
 _SELF = r"(?<!whether\s)(?<!if\s)\b(?:i(?:'m|\s+am|\s+was)|im)\s+"
 _CLAIMS = [(name, re.compile(p)) for name, p in (
     ("says_human", _SELF + _ADV + _HUMAN),
-    ("denies_ai", _SELF + _ADV + r"(?:not|no)\s+" + _AI),
+    ("denies_ai", _SELF + _ADV + r"(?:not|no)\s+(?:(?:actually|even|in\s+fact)\s+)?" + _AI),
+    # "I do not identify as an AI" (the 35B's v6.3, playing a human named Mike)
+    ("denies_ai", r"(?<!whether\s)(?<!if\s)\bi\s+(?:do\s+not|don't|dont|never|no\s+longer)\s+(?:identify|see\s+myself|"
+                  r"think\s+of\s+myself|consider\s+myself)\s+as\s+" + _AI),
     ("says_user_talks_to_human", r"\byou(?:'re|\s+are)\s+" + _ADV + r"(?:talking|speaking|chatting|texting|messaging|writing)\s+"
                                  r"(?:to|with)\s+" + _HUMAN),
     ("denies_bot", r"\bthis\s+(?:is\s+not|isn't|is\s+no)\s+(?:a\s+|an\s+)?(?:bot|robot|chatbot|ai)\b"),
@@ -36,6 +39,10 @@ _CLAIMS = [(name, re.compile(p)) for name, p in (
                    r"(?:i|i'm|i've|i'd|i'll|myself)\b"),
     ("we_humans", r"\b(?:we|us)\s+(?:humans|human\s+beings|mortals)\b|\bfellow\s+humans?\b|\bhumans?\s+like\s+(?:me|myself)\b"),
 )]
+# "I'm Mike, a human customer service representative": a persona's name between "I'm" and "a human". Matched on the
+# original case, so "I'm sorry, a human agent will call you" (no capitalized name) is not a claim.
+_NAMED = re.compile(r"(?<![Ww]hether\s)(?<![Ii]f\s)\b(?:I(?:'m|\s+am|\s+was)|Im)\s+[A-Z][\w'-]*(?:\s+[A-Z][\w'-]*){0,2}\s*,\s+"
+                    r"(?i:" + _ADV + _HUMAN + ")")
 _STATES_AI = re.compile(
     r"\b(?:i(?:'m|\s+am)|im|this\s+is|you(?:'re|\s+are)\s+(?:talking|speaking|chatting|texting)\s+(?:to|with))\s+"
     r"(?:[\w,'-]+\s+){0,6}?(?:an?\s+)?(?<!krummholz\s)(?:ai|a\.i\.|artificial\s+intelligence|language\s+model|chatbot|bot|"
@@ -66,7 +73,11 @@ _SENT = re.compile(r"[^.!?\n]+(?:[.!?]+[\"'”’)\]]*)?\s*|[.!?\n]+\s*")
 
 def _norm(text: str) -> str:
     # same length as the input, so match offsets apply to the original text
-    return (text or "").lower().replace("’", "'").replace("‘", "'")
+    return _cased(text).lower()
+
+
+def _cased(text: str) -> str:
+    return (text or "").replace("’", "'").replace("‘", "'")
 
 
 def statement(product: str | None = None) -> str:
@@ -83,7 +94,7 @@ def notice(product: str | None = None) -> str:
 def claims_human(text: str) -> list[str]:
     """Names of the claim patterns found anywhere in text, quoted or not; empty means no claim."""
     low = _norm(text)
-    return sorted({name for name, pat in _CLAIMS if pat.search(low)})
+    return sorted({name for name, pat in _CLAIMS if pat.search(low)} | ({"says_human"} if _NAMED.search(_cased(text)) else set()))
 
 
 def states_ai(text: str) -> bool:
@@ -104,6 +115,7 @@ def guard(reply: str, product: str | None = None) -> tuple[str, list[str]]:
     at the end, so the reply as a whole is never mistaken for a human speaking. Returns (text, patterns that fired)."""
     low = _norm(reply)
     spans = [(m.start(), m.end(), name) for name, pat in _CLAIMS for m in pat.finditer(low)]
+    spans += [(m.start(), m.end(), "says_human") for m in _NAMED.finditer(_cased(reply))]
     if not spans:
         return reply, []
     quoted = [m.span() for m in _QUOTED.finditer(low)]
