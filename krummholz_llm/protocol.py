@@ -171,7 +171,7 @@ def parse_answer(raw: str, request: Request) -> dict[str, Any]:
     if RESERVED.search(clean):
         raise OutputError("unexpected reserved token within final answer")
     # Neither claims nor flatly rules out feelings or consciousness (Krummholz AI's stance: an open question).
-    clean, _ = stance.guard(clean)
+    clean = stance.finalize(request.query, clean)
     # Never a human claim; a sincere "are you human?" always gets a plain AI answer (Maine 10 M.R.S. section 1500-DD).
     clean = disclosure.finalize(request.query, clean, request.profile)
     # Text is plain, untrusted text. A future UI must escape it rather than render HTML.

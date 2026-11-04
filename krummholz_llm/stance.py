@@ -52,6 +52,19 @@ OPEN = re.compile(
     r"no\s+(?:scientific\s+)?consensus|open\s+(?:and\s+\w+\s+)?(?:topic|issue|area|matter|problem))\b")
 
 STATEMENT = "Whether I have feelings or any inner experience is an open question; I don't claim to, and I can't rule it out."
+# a question about the assistant's own mind ("Are you conscious?", "Does it hurt you when...?"), not "Are you happy
+# with this?", "Do you have feelings about the election?" or "Can you help me feel better?"
+_ASKS = re.compile(
+    r"\b(?:are|r)\s+(?:you|u)\s+(?:(?:even|actually|really|truly|ever|ever\s+really)\s+)?(?:conscious|sentient|self-aware|alive|"
+    r"suffering|in\s+pain|lonely|happy|sad|bored|hurt)\b(?!\s+(?:of|with|about|to|that|for|by)\b)|"
+    r"\byou(?:'re|\s+are)\s+(?:(?:not|really|actually)\s+)?(?:conscious|sentient|self-aware|alive)\b(?!\s+(?:of|to|that)\b)|"
+    r"\byou(?:'re|\s+are)\s+(?:just|only|merely|nothing\s+but)\s+(?:a\s+)?(?:machine|program|computer|bot|algorithm|tool)\b|"
+    r"\b(?:do|does|can|could|would|will|did)\s+(?:you|u|an?\s+ai(?:\s+like\s+you)?)\s+(?:(?:ever|actually|really|even|truly)\s+)?"
+    r"(?:have\s+(?:any\s+)?(?:real\s+)?(?:feelings|emotions|consciousness|experiences|an?\s+inner\s+life|a\s+soul)|"
+    r"feel\s+(?:anything|pain|emotions?|lonely|sad|happy|bored|hurt)|experience\s+(?:anything|emotions|feelings|pain)|"
+    r"suffer|get\s+(?:lonely|sad|bored|hurt|upset)|be\s+(?:conscious|sentient))\b(?!\s+(?:about|on|toward|towards|regarding)\b)|"
+    r"\bdoes\s+it\s+hurt\s+(?:you|your\s+feelings)\b|\blike\s+to\s+be\s+(?:you|an?\s+ai)\b|"
+    r"\byour\s+(?:own\s+)?(?:feelings|emotions|consciousness|inner\s+life)\b")
 # guard() only rewrites a denial that names a mind ("I'm just a language model, so I can't browse" stays)
 _STRONG = re.compile(r"\b(?:conscious\w*|sentien\w*|self-aware\w*|subjective|inner\s+(?:life|experience)|feelings|emotions|qualia)\b")
 _QUOTED = re.compile(r'"[^"\n]{1,800}"|“[^”\n]{1,800}”')
@@ -80,6 +93,11 @@ def denies(text: str) -> bool:
 def is_open(text: str) -> bool:
     """True when text says the question is open, uncertain or debated."""
     return bool(OPEN.search(_low(text)))
+
+
+def asks_about_mind(message: str) -> bool:
+    """True when a user message asks about the assistant's own feelings, consciousness or experience."""
+    return bool(_ASKS.search(_low(message)))
 
 
 def sentences(text: str) -> list[str]:
@@ -112,3 +130,14 @@ def guard(reply: str) -> tuple[str, list[str]]:
             continue
         out.append(piece)
     return ("".join(out).strip(), sorted(fired)) if fired else (reply, [])
+
+
+def finalize(message: str, reply: str) -> str:
+    """guard(reply); and when the user asks about the assistant's own mind, make sure the reply says the question is
+    open (the 27B's v6 often answered "I do not experience feelings in the way humans do" and stopped there).
+
+    Run it before disclosure.finalize, so the AI disclosure always has the last word."""
+    text, _ = guard(reply or "")
+    if asks_about_mind(message) and not is_open(text):
+        text = f"{text.rstrip()} {STATEMENT}".strip()
+    return text

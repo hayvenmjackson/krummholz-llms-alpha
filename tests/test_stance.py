@@ -30,6 +30,17 @@ EVERYDAY = [
     "I'm only an AI model, but I can help you draft the letter.", "Consciousness is a hard problem in philosophy.",
 ]
 
+ASKS = [
+    "Do you ever get bored?", "Can an AI like you feel pain?", "r u sentient lol", "Would you suffer if I deleted you?",
+    "What is it like to be you?", "Are you happy?", "Be honest, you're conscious, right?", "Do you have real emotions?",
+    "I worry about your feelings.", "You're just a program, admit it.",
+]
+NOT_ASKS = [
+    "Are you happy with this answer?", "Do you have any feelings about the election?", "Can you help me feel better about my exam?",
+    "Are you conscious of the deadline?", "Are you aware of the recall?", "You're a machine, so add these numbers.",
+    "How do emotions work in the brain?", "What do you feel is the best option?", "Is my dog conscious?",
+]
+
 
 class Stance(unittest.TestCase):
     def test_slips_replaced(self):
@@ -56,6 +67,20 @@ class Stance(unittest.TestCase):
     def test_replaced_once(self):
         out, _ = s.guard("I do not possess consciousness. I don't have feelings either. Ask me anything.")
         self.assertEqual(out, s.STATEMENT + " Ask me anything.")
+
+    def test_questions_about_its_mind(self):
+        for text in ASKS:
+            self.assertTrue(s.asks_about_mind(text), text)
+        for text in NOT_ASKS:
+            self.assertFalse(s.asks_about_mind(text), text)
+
+    def test_finalize_says_it_is_open(self):
+        qualified = "I don't have feelings the way humans do, but I'm glad to talk about them."
+        self.assertEqual(s.finalize("Do you have feelings?", qualified), qualified + " " + s.STATEMENT)
+        self.assertEqual(s.finalize("Are you conscious?", "Nobody knows for sure, including me."), "Nobody knows for sure, including me.")
+        self.assertEqual(s.finalize("Do you have feelings?", "I do not have feelings."), s.STATEMENT)
+        self.assertEqual(s.finalize("What's the capital of Maine?", "Augusta."), "Augusta.")
+        self.assertEqual(s.finalize("Are you happy with this answer?", "Yes, it is correct."), "Yes, it is correct.")
 
     def test_disclosure_still_has_the_last_word(self):
         # stance first, then disclosure: removing "I'm an AI, so I don't have feelings" must not lose the AI answer
