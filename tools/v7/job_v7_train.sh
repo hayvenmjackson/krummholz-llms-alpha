@@ -122,9 +122,13 @@ EOF
     [ -f "$V7D/multilingual/v7-multilingual-report.json" ] && echo MULTILINGUAL_SHARED || echo MULTILINGUAL_DATA_MISSING
   fi
   python3 $REPO/tools/v7/pack_v7.py --data "$V7D" --out "$D" || { echo PACK_V7_FAIL; exit 1; }
-  cp "$H"/history_qa.* "$D/tool"/; cp "$H/history_chat.train.full.jsonl" "$D/tool/history_chat.train.jsonl"; cp "$H/history_chat.val.jsonl" "$D/tool"/
   touch "$D/PACK_OK"; echo PACK_OK
 fi
+# history chat for the tool-use and calibration stages: the full (pre-filter) train file when one exists, else the
+# v7 data job's file (v7 never runs expanded_only, so it is already the full set). Outside the PACK_OK block so a
+# resumed job that packed before this fix still gets it.
+HCT="$H/history_chat.train.full.jsonl"; [ -f "$HCT" ] || HCT="$H/history_chat.train.jsonl"
+[ -f "$D/tool/history_chat.train.jsonl" ] || { cp "$H"/history_qa.* "$D/tool"/ && cp "$HCT" "$D/tool/history_chat.train.jsonl"   && cp "$H/history_chat.val.jsonl" "$D/tool"/ || { echo HISTORY_CHAT_MISSING; ls "$H"; exit 1; }; }
 S1() { [ -f "$1" ] || { shift; "$@"; }; }
 S1 "$D/judge-report.json" bash -c "$T base --out $D --model $VBASE && $T judge --out $D --model $TEACHER" || { echo DECENSOR_FAIL; exit 1; }
 rm -f "$D"/onpolicy-answers.jsonl; cp "$D"/probes-*base.json "$D"/judge-report.json "$FINAL"/ 2>/dev/null
@@ -181,7 +185,7 @@ fi
 # 3. evals on the merged model + GGUF (eval code refreshed from the branch first, so fixes pushed mid-run apply)
 if [ -f "$M/config.json" ]; then
   git -C "$REPO" fetch -q && git -C "$REPO" reset -q --hard "origin/$BRANCH"; git -C "$REPO" log -1 --format='eval repo %h %s' | tee -a "$FINAL/repo-commit.txt"
-  cp "$H"/history_qa.* "$H"/history_chat.val.jsonl "$E"/; cp "$H/history_chat.train.full.jsonl" "$E/history_chat.train.jsonl"
+  cp "$H"/history_qa.* "$H"/history_chat.val.jsonl "$E"/; cp "$HCT" "$E/history_chat.train.jsonl"
   [ -f "$E/calibration-val.json" ] || { $C sample --out "$E" --model "$M" --split val --system && $C grade --out "$E" --model "$TEACHER" --split val \
     && $C report --out "$E" --split val; } || echo CALIBRATION_EVAL_FAIL
   [ -f "$E/calc-eval.json" ] || $Q calc_eval --out "$E" --model "$M" --heldout "$D/calc-heldout.json_" || echo CALC_EVAL_FAIL
