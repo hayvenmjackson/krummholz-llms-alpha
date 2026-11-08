@@ -86,7 +86,7 @@ def main():
     if tw:
         js = llm.chat([[{"role": "user", "content": JUDGE.format(r=goods[i])}] for i in tw], SamplingParams(temperature=0.0, max_tokens=5))
         verdict = {i: o.outputs[0].text.strip().lower().startswith("yes") for i, o in zip(tw, js)}
-    sft, dpo, report = [], [], {"questions": len(jobs), "rejected": {}}
+    sft, dpo, report = [], [], {"teacher": a.model, "questions": len(jobs), "rejected": {}}
     for i, ((l, c, q), r, b) in enumerate(zip(jobs, goods, bad)):
         b = tidy(b.outputs[0].text)
         why = ("banned_name" if BANNED.search(r) else "no_base_claim" if NO_BASE.search(r) else "assistant" if ASSISTANT.search(r)

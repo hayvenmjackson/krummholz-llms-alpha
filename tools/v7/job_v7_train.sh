@@ -112,8 +112,14 @@ EOF
   cp "$ID"/identity*.jsonl "$D"/
   # multilingual identity and Taiwan data (shared on the volume; the first training pod builds it). Gemma 3 is gated:
   # it needs Hayven's terms acceptance and the hf_token secret; otherwise OLMo 3.1 writes it, checked by the same code.
-  if [ ! -f "$V7D/multilingual/v7-multilingual-report.json" ]; then
+  # Pods running in parallel: the first to take the lock builds it, the others wait (up to 3 hours) for its report.
+  if [ ! -f "$V7D/multilingual/v7-multilingual-report.json" ] && mkdir "$V7D/multilingual.lock" 2>/dev/null; then
+    echo "MULTILINGUAL_BUILDER $NAME"
     HF_TOKEN=$HFT HF_HUB_DISABLE_IMPLICIT_TOKEN=0 python3 $REPO/tools/v7/multilingual_data.py --out "$V7D/multilingual"       || python3 $REPO/tools/v7/multilingual_data.py --out "$V7D/multilingual" --model "$TEACHER" || echo MULTILINGUAL_DATA_FAIL
+    [ -f "$V7D/multilingual/v7-multilingual-report.json" ] || touch "$V7D/multilingual.failed"
+  else
+    for i in $(seq 180); do { [ -f "$V7D/multilingual/v7-multilingual-report.json" ] || [ -f "$V7D/multilingual.failed" ]; } && break; sleep 60; done
+    [ -f "$V7D/multilingual/v7-multilingual-report.json" ] && echo MULTILINGUAL_SHARED || echo MULTILINGUAL_DATA_MISSING
   fi
   python3 $REPO/tools/v7/pack_v7.py --data "$V7D" --out "$D" || { echo PACK_V7_FAIL; exit 1; }
   cp "$H"/history_qa.* "$D/tool"/; cp "$H/history_chat.train.full.jsonl" "$D/tool/history_chat.train.jsonl"; cp "$H/history_chat.val.jsonl" "$D/tool"/
