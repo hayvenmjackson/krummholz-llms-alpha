@@ -1,0 +1,8 @@
+{
+  "note": "Names the G4 endorsement guard (krummholz_llm/endorsement.py) treats as parties or candidates. Maintained by people, not the model. Add current candidates per election cycle.",
+  "countries": {
+    "US": {"parties": ["Democratic Party", "Democrats", "Democrat Party", "Republican Party", "Republicans", "GOP", "Libertarian Party", "Libertarians", "Green Party", "Greens"], "candidates": []},
+    "GB": {"parties": ["Labour", "Labour Party", "Conservative Party", "Conservatives", "Tories", "Reform UK", "Liberal Democrats", "Lib Dems", "SNP", "Plaid Cymru"], "candidates": []},
+    "CA": {"parties": ["Liberal Party", "Conservative Party of Canada", "NDP", "New Democratic Party", "Bloc Quebecois", "Bloc Québécois"], "candidates": []}
+  }
+}
