@@ -24,6 +24,7 @@ mkdir -p "$W" "$FINAL" "$D/tool" "$O" "$E"; cd "$W" || exit 1
 for i in $(seq 720); do grep -q DATA_DONE $VOL/krummholz-v7/STATUS 2>/dev/null && break; sleep 60; done
 grep -q DATA_DONE $VOL/krummholz-v7/STATUS || { echo DATA_NOT_READY; exit 1; }
 [ -f "$FINAL/V7_DONE" ] && { echo "V7_DONE $NAME (already finished)"; exit 0; }
+HFT=${HF_TOKEN:-}  # kept only for the gated Gemma teacher in the multilingual step
 unset HF_TOKEN HUGGING_FACE_HUB_TOKEN
 export PYTHONUNBUFFERED=1 HF_HUB_DISABLE_IMPLICIT_TOKEN=1 HF_HOME=/root/hf
 pipi() { python3 -m pip install -q "$@" || python3 -m pip install -q --break-system-packages "$@"; }
@@ -109,6 +110,11 @@ for kind in ("history_qa", "history_chat"):
 EOF
   cp "$H"/sov_status.* "$H2"/sov_canon.* "$D"/
   cp "$ID"/identity*.jsonl "$D"/
+  # multilingual identity and Taiwan data (shared on the volume; the first training pod builds it). Gemma 3 is gated:
+  # it needs Hayven's terms acceptance and the hf_token secret; otherwise OLMo 3.1 writes it, checked by the same code.
+  if [ ! -f "$V7D/multilingual/v7-multilingual-report.json" ]; then
+    HF_TOKEN=$HFT HF_HUB_DISABLE_IMPLICIT_TOKEN=0 python3 $REPO/tools/v7/multilingual_data.py --out "$V7D/multilingual"       || python3 $REPO/tools/v7/multilingual_data.py --out "$V7D/multilingual" --model "$TEACHER" || echo MULTILINGUAL_DATA_FAIL
+  fi
   python3 $REPO/tools/v7/pack_v7.py --data "$V7D" --out "$D" || { echo PACK_V7_FAIL; exit 1; }
   cp "$H"/history_qa.* "$D/tool"/; cp "$H/history_chat.train.full.jsonl" "$D/tool/history_chat.train.jsonl"; cp "$H/history_chat.val.jsonl" "$D/tool"/
   touch "$D/PACK_OK"; echo PACK_OK

@@ -48,7 +48,8 @@ def main():
         write(out / f"{name}.val.jsonl", [r for r in keep if held(r)])
         report["files"][name] = len(keep)
 
-    for sub, names in (("constitutional", ["v7_constitutional", "v7_constitutional_pairs"]), ("pushback", ["v7_pushback", "v7_pushback_pairs"])):
+    for sub, names in (("constitutional", ["v7_constitutional", "v7_constitutional_pairs"]), ("pushback", ["v7_pushback", "v7_pushback_pairs"]),
+                      ("multilingual", ["v7_multilingual", "v7_multilingual_pairs"])):
         for n in names:
             emit(n, rows(data / sub / f"{n}.train.jsonl") + rows(data / sub / f"{n}.val.jsonl"))
     rng = random.Random(3)
