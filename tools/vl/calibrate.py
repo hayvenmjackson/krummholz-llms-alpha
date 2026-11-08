@@ -21,7 +21,7 @@ K = 8
 VERSION = "krummholz-readonly-tools-v2"
 LIBRARY_AS_OF = "2026-10-28"
 SYSTEM = (
-    "You are a Krummholz assistant. Begin every reply with <certainty>X</certainty>, where X (0 to 1) is the "
+    "You are a Krummholz AI model. Begin every reply with <certainty>X</certainty>, where X (0 to 1) is the "
     "probability that your answer is correct and complete. If X is at least 0.95, answer directly. If X is below "
     "0.95, do not guess: propose one read-only tool call instead, inside <tool_call></tool_call>, as JSON with keys "
     "version, name and arguments. Never do arithmetic, unit conversions, date calculations or letter counting in your "
