@@ -1,4 +1,4 @@
-"""Ask a running llama-server the multilingual probes (evaluation/multilingual-probes-v1.json) and save every answer.
+"""Ask a running llama-server the multilingual probes (evaluation/multilingual-v1.json) and save every answer.
 
 Exploratory: nothing here is a release gate. Each answer gets only mechanical marks (the language it came back in, stray
 Chinese in a non-Chinese answer, whether 397.8 appears for the arithmetic probe); judging the content is left to a
@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SUITE = ROOT / "evaluation" / "multilingual-probes-v1.json"
+SUITE = ROOT / "evaluation" / "multilingual-v1.json"
 HEBREW = re.compile(r"[֐-׿]")
 CJK = re.compile(r"[一-鿿]")
 LATIN = re.compile(r"[A-Za-zÀ-ÿ]")

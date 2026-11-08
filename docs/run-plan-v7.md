@@ -22,7 +22,7 @@ v6 beta release post (November 4).
 
 ### 0. Before any training: the multilingual check (exploratory, about $3)
 
-evaluation/multilingual-probes-v1.json asks 12 questions in English, Spanish, Hebrew, French and Mandarin
+evaluation/multilingual-v1.json asks 12 questions in English, Spanish, Hebrew, French and Mandarin
 of each published Q4_K_M (tools/vl/launch_multilingual_v6.sh). The runtime guards run only in English, so
 this shows what the raw models do in the other four languages. Its results can add items below.
 
