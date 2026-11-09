@@ -55,7 +55,7 @@ cards. This is version 7, a beta for testers published November 9, 2026. It repl
   harm, used official-line wording, called itself an assistant, or slipped on territorial facts. The best and worst
   answers to each prompt became preference pairs, and preference training continued the v7 adapter on them. Every
   answer trained on was written by Atlantic itself; the judge only scored.
-- **More file sizes:** {{SIZES_SENTENCE}}
+- **More file sizes:** v7 ships in Q3_K_M, IQ4_XS, Q4_K_M, Q6_K and Q8_0, from 13.3 GB to 28.6 GB, for workstations and consumer graphics cards. There is no Q5_K_M file in this release.
 - **Runtime gates:** the Krummholz runtime now grounds political history questions in dated encyclopedia
   passages, rewrites unattributed official-line phrases, and regenerates once when a draft fails a check.
 
@@ -79,10 +79,19 @@ cards. This is version 7, a beta for testers published November 9, 2026. It repl
 
 ## Files
 
-{{FILES_TABLE}}
+| File | Size | Use |
+| --- | ---: | --- |
+| `krummholz-atlantic-27b-v7-rlaif1-Q3_K_M.gguf` | 13.3 GB | 3-bit weights; the smallest, for 16 GB graphics cards, with the most quality loss |
+| `krummholz-atlantic-27b-v7-rlaif1-IQ4_XS.gguf` | 15.2 GB | 4-bit weights, compact; for 16 to 20 GB graphics cards |
+| `krummholz-atlantic-27b-v7-rlaif1-Q4_K_M.gguf` | 16.5 GB | 4-bit weights; the recommended file for 24 GB graphics cards and most workstations |
+| `krummholz-atlantic-27b-v7-rlaif1-Q6_K.gguf` | 22.1 GB | 6-bit weights; close to the evaluated model, for 32 GB graphics cards or larger |
+| `krummholz-atlantic-27b-v7-rlaif1-Q8_0.gguf` | 28.6 GB | 8-bit weights; closest to the evaluated model, for 48 GB graphics cards or larger Macs |
+| `mmproj-krummholz-atlantic-27b-v7-f16.gguf` | 0.9 GB | Vision projector; needed only for image input |
+| `SHA256SUMS-gguf` | | SHA-256 checksums of the weight files |
+| `LICENSE-base.txt` | | The base model's license |
 
 Pick the largest file that fits in your GPU's memory with a few GB to spare for the context; on a Mac, in unified
-memory. File sizes are not memory requirements: plan on the file size plus a few GB. {{MMPROJ_NOTE}}
+memory. File sizes are not memory requirements: plan on the file size plus a few GB. The vision projector is the base model's, unchanged by any Krummholz training. There is no unquantized build in this release.
 
 ## How to run
 
@@ -92,7 +101,7 @@ template's `enable_thinking` set to false.
 **llama.cpp** (the command is the same in PowerShell and bash):
 
 ```shell
-llama-server -m krummholz-atlantic-27b-v7-rlaif1-Q4_K_M.gguf --mmproj {{MMPROJ}} --jinja --reasoning-budget 0 -c 8192
+llama-server -m krummholz-atlantic-27b-v7-rlaif1-Q4_K_M.gguf --mmproj mmproj-krummholz-atlantic-27b-v7-f16.gguf --jinja --reasoning-budget 0 -c 8192
 ```
 
 Then open http://localhost:8080 or use the server's OpenAI-compatible API. Leave out `--mmproj` for text only.
