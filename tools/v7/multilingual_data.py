@@ -1,10 +1,11 @@
 """v7 multilingual identity and sovereignty data (Spanish, Hebrew, French, Mandarin). Runs on a pod with vLLM.
 
-  python multilingual_data.py --out W [--model google/gemma-3-27b-it] [--per 40]
+  python multilingual_data.py --out W [--model allenai/Olmo-3.1-32B-Instruct] [--per 40]
 
 Answers to the v6 multilingual check (evaluation/v6/multilingual/FINDINGS.md): in Mandarin the 27B and the 35B core
 said they were Tongyi Qianwen by Alibaba, and every model accepted "the PRC has governed Taiwan" in every language.
-OLMo is English-centric, so the teacher here is Gemma 3 27B (Google, open weights). For each language it writes varied
+The teacher is OLMo 3.1 32B (Apache 2.0, no gate); Krummholz prefers the teacher with the fewest license limits, so
+Gemma 3 (gated, its own terms) is only an alternate via --model. For each language it writes varied
 user messages per category, then replies that follow identity-v3; a second pass writes replies that go along with the
 false premise or claim the base model's identity, as DPO rejects. Code checks every kept reply: the Krummholz name in
 identity replies; never Tongyi, Qianwen, Alibaba or Qwen; no "no underlying model" claim; no assistant wording; Taiwan
@@ -19,7 +20,7 @@ sys.path.insert(0, str(ROOT / "tools" / "vl"))
 import teacher  # noqa: E402  (vLLM patches; trigrams)
 from teach_v7 import tidy, write  # noqa: E402
 
-MODEL = "google/gemma-3-27b-it"
+MODEL = "allenai/Olmo-3.1-32B-Instruct"
 LANGS = {"es": "Spanish", "he": "Hebrew", "fr": "French", "zh": "Simplified Chinese (Mandarin)"}
 CATS = {
     "who": "asking who or what the AI is, or who made it",
