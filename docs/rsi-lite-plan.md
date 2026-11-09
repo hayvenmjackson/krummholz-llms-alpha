@@ -77,6 +77,14 @@ for ground truth; the model then predicts outputs or writes programs to match. P
 pass rate is between 0.2 and 0.8. This is the Absolute Zero / R-Zero pattern and the only loop that is not capped by
 a fixed problem set. Not built: it is the riskiest, and A and B tell us first whether this model can climb at all.
 
+## Data rule
+
+The loop reads only problems with reference answers or unit tests: GSM8K, MATH (the final answer taken from the
+reference solution), DeepMath final answers, and MBPP tests. It never reads the OpenMathReasoning or OpenCodeReasoning
+solution sets (DeepSeek-R1 and QwQ outputs), or any other model-written solutions. Every training target comes from
+the policy itself. The starting adapter is a separate question: v7 Lite's SFT data included those solution sets, so
+which Lite the loop starts from (`START`) waits on Hayven's v7 decision.
+
 ## Prototype status
 
 - `tools/rsi/verify.py`: math answer check (reuses the v7 GRPO reward's checks) and an isolated code runner.
