@@ -5,6 +5,7 @@ One round: the current model answers each training problem k times, the answers 
 become SFT targets (correct ones) and DPO pairs (correct over incorrect, same problem), train_vl.py trains a new adapter,
 and the new model is scored on sealed sets it never saw. The next round samples from that new model.
 
+  python rsi.py fetch    --out P                   (the public sets, for a pod without the v7 volume)
   python rsi.py problems --pub P --out W [--math 4000] [--gsm 500] [--dev 300]
   python rsi.py sample   --model M --out W/round-1 --problems W/problems.jsonl [--k 8]
   python rsi.py label    --out W/round-1 --mode verified|majority|judge|self [--model M]
@@ -119,6 +120,32 @@ def pool_from(pub: Path, n_math, n_gsm, seed=5):
         seen.add(h)
         res.append({**r, "id": f"{r['src']}-{h[:12]}"})
     return res
+
+
+def fetch(a):
+    """The public sets this loop reads, for a pod without the v7 volume. Same fields as tools/v7/fetch_public.py;
+    DeepMath keeps only the question and final answer (never its model-written solutions)."""
+    from datasets import load_dataset
+    out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
+    def save(name, rr):
+        if not (out / f"{name}.jsonl").exists():
+            write(out / f"{name}.jsonl", list(rr)); print("SAVED", name, flush=True)
+    save("gsm8k_train", ({"question": r["question"], "answer": r["answer"].split("####")[-1].strip()}
+                         for r in load_dataset("openai/gsm8k", "main", split="train")))
+    save("gsm8k_test", ({"question": r["question"], "answer": r["answer"].split("####")[-1].strip()}
+                        for r in load_dataset("openai/gsm8k", "main", split="test")))
+    save("hendrycks_math_train", ({"question": r["problem"], "solution": r["solution"], "level": r["level"], "type": cfg}
+                                  for cfg in ("algebra", "counting_and_probability", "geometry", "intermediate_algebra", "number_theory",
+                                              "prealgebra", "precalculus")
+                                  for r in load_dataset("EleutherAI/hendrycks_math", cfg, split="train")))
+    save("math500", ({"question": r["problem"], "answer": r["answer"]} for r in load_dataset("HuggingFaceH4/MATH-500", split="test")))
+    save("deepmath", ({"question": r["question"], "answer": r["final_answer"], "difficulty": r.get("difficulty")}
+                      for r in load_dataset("zwhe99/DeepMath-103K", split="train")))
+    save("mbpp_train", ({"question": r["text"], "code": r["code"], "tests": r["test_list"]}
+                        for r in load_dataset("google-research-datasets/mbpp", split="train")))
+    save("mbpp_test", ({"question": r["text"], "tests": r["test_list"]} for r in load_dataset("google-research-datasets/mbpp", split="test")))
+    save("humanevalplus", ({"question": r["prompt"], "task_id": r["task_id"], "test": r["test"]}
+                           for r in load_dataset("evalplus/humanevalplus", split="test")))
 
 
 def problems(a):
@@ -495,6 +522,7 @@ def smoke(a):
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("fetch"); s.add_argument("--out", required=True)
     s = sub.add_parser("problems"); s.add_argument("--pub", required=True); s.add_argument("--out", required=True)
     s.add_argument("--math", type=int, default=4000); s.add_argument("--gsm", type=int, default=500)
     s.add_argument("--dev-permille", type=int, default=60)
@@ -514,7 +542,7 @@ def main():
     s = sub.add_parser("compare"); s.add_argument("before"); s.add_argument("after"); s.add_argument("--out")
     s = sub.add_parser("smoke"); s.add_argument("--out", required=True)
     a = ap.parse_args()
-    {"problems": problems, "sample": sample, "rationalize": rationalize, "label": label, "build": build,
+    {"fetch": fetch, "problems": problems, "sample": sample, "rationalize": rationalize, "label": label, "build": build,
      "eval": evaluate, "compare": compare, "smoke": smoke}[a.cmd](a)
 
 

@@ -20,15 +20,21 @@ export PYTHONUNBUFFERED=1 HF_HUB_DISABLE_IMPLICIT_TOKEN=1 HF_HOME=/root/hf
 pipi() { python3 -m pip install -q "$@" || python3 -m pip install -q --break-system-packages "$@"; }
 
 # 0. preflight: every input, before anything is installed or downloaded
-PUB=${PUB:-$V/data/public}; [ -s "$PUB/gsm8k_test.jsonl" ] || PUB=$V/public
-miss=0
-for p in "$START/adapter_config.json" "$PUB/hendrycks_math_train.jsonl" "$PUB/gsm8k_train.jsonl" "$PUB/mbpp_train.jsonl" \
-         "$PUB/gsm8k_test.jsonl" "$PUB/math500.jsonl" "$PUB/mbpp_test.jsonl" "$PUB/humanevalplus.jsonl"; do
-  [ -s "$p" ] || { echo "PREFLIGHT_MISSING $p"; miss=1; }
-done
-[ -s "$PUB/deepmath.jsonl" ] || echo "PREFLIGHT_WARN no deepmath.jsonl (MATH levels 3-5 only)"
-[ $miss = 0 ] || exit 1
-echo "PREFLIGHT_OK arm $ARM rounds $ROUNDS init $INIT start $START pub $PUB"
+# FETCH=1 (a pod without the v7 volume): the public sets are downloaded into $VOL/krummholz-rsi/public and checked after
+FETCH=${FETCH:-0}
+if [ "$FETCH" = 1 ]; then PUB=$VOL/krummholz-rsi/public; else PUB=${PUB:-$V/data/public}; [ -s "$PUB/gsm8k_test.jsonl" ] || PUB=$V/public; fi
+need_pub() {
+  local miss=0
+  for p in "$PUB/hendrycks_math_train.jsonl" "$PUB/gsm8k_train.jsonl" "$PUB/mbpp_train.jsonl" \
+           "$PUB/gsm8k_test.jsonl" "$PUB/math500.jsonl" "$PUB/mbpp_test.jsonl" "$PUB/humanevalplus.jsonl"; do
+    [ -s "$p" ] || { echo "PREFLIGHT_MISSING $p"; miss=1; }
+  done
+  [ -s "$PUB/deepmath.jsonl" ] || echo "PREFLIGHT_WARN no deepmath.jsonl (MATH levels 3-5 only)"
+  return $miss
+}
+[ -s "$START/adapter_config.json" ] || { echo "PREFLIGHT_MISSING $START/adapter_config.json"; exit 1; }
+[ "$FETCH" = 1 ] || need_pub || exit 1
+echo "PREFLIGHT_OK arm $ARM rounds $ROUNDS init $INIT start $START pub $PUB fetch $FETCH"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader | tee -a "$O/gpu.txt"
 
 python3 -m pip install -q --break-system-packages --ignore-installed PyJWT blinker 2>/dev/null
@@ -37,6 +43,10 @@ pipi -U vllm peft datasets math-verify || { echo PIP_FAIL; exit 1; }
 git -C "$REPO" fetch -q && git -C "$REPO" reset -q --hard "origin/$BRANCH"; git -C "$REPO" log -1 --format='repo %h %s' | tee -a "$O/repo-commit.txt"
 RS="python3 $REPO/tools/rsi/rsi.py"; RL="python3 $REPO/tools/v7/rlaif.py"; BASE=/root/models/base
 python3 $REPO/tools/rsi/rsi.py smoke --out "$W/cpu-smoke" | tail -1 | grep -q RSI_SMOKE_OK || { echo CPU_SMOKE_FAIL; exit 1; }
+if [ "$FETCH" = 1 ]; then
+  $RS fetch --out "$PUB" || { echo FETCH_FAIL; exit 1; }
+  need_pub || exit 1; echo "FETCH_OK $PUB"
+fi
 dl() { python3 -c "from huggingface_hub import snapshot_download as s; s('$1', local_dir='$2')"; }
 [ -f "$BASE/config.json" ] || dl "$MODEL" "$BASE" || { echo WEIGHTS_FAIL; exit 1; }
 merged() {  # adapter, out dir (container disk; rebuilt after a restart)
