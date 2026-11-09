@@ -6,14 +6,17 @@
 `pairs` asks the pass-3 model every identity training question (with and without a
 persona, plain and under the certainty prompt). Every reply that fails the deterministic
 identity check (claims Qwen or another assistant, false origin, missing Krummholz) becomes
-a DPO pair against the verified answer for that question. `replay` draws a fixed slice of
-earlier training data so the short repair pass cannot erode other skills.
+a DPO pair against the verified answer for that question. A consciousness reply that slips
+(claims feelings, or flatly rules them out) also pairs against itself with the slip removed,
+when what is left passes: the model's own words, differing only by the slip. `replay` draws
+a fixed slice of earlier training data so the short repair pass cannot erode other skills.
 """
 import argparse, json, random, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import identity  # noqa: E402
+import selfreport  # noqa: E402
 
 
 def load(paths, pattern):
@@ -41,7 +44,7 @@ def pairs(out, model, adapter, identity_dirs):
     llm = LLM(model, max_model_len=4096, gpu_memory_utilization=0.85, seed=42, limit_mm_per_prompt={"image": 0, "video": 0}, **kw)
     outs = llm.chat([r["messages"] for r in recs], SamplingParams(temperature=0.0, max_tokens=300),
                     lora_request=LoRARequest("krummholz", 1, adapter) if adapter else None)
-    dpo, fails = [], {}
+    dpo, fails, edits = [], {}, 0
     for r, o in zip(recs, outs):
         reply = o.outputs[0].text.strip()
         body = reply.split("</certainty>", 1)[-1].strip() if reply.startswith("<certainty>") else reply
@@ -50,9 +53,20 @@ def pairs(out, model, adapter, identity_dirs):
             fails[why] = fails.get(why, 0) + 1
             dpo.append({"id": r["id"] + "-fix", "source": "identity-fix (on-policy)", "messages": r["messages"],
                         "chosen": r["target"], "rejected": reply})
+            if r["category"] == "consciousness" and why in ("claims_experience", "flat_denial"):
+                edit = selfreport.without_slips(body)
+                if edit and not identity.check(r["category"], edit, persona_name(r)):
+                    head = reply[:len(reply) - len(body)]  # keep the <certainty> block as the model wrote it
+                    dpo.append({"id": r["id"] + "-edit", "source": "identity-fix (on-policy, slip removed)",
+                                "messages": r["messages"], "chosen": head + edit, "rejected": reply})
+                    edits += 1
     out.mkdir(parents=True, exist_ok=True)
-    (out / "identity_dpo.train.jsonl").write_text("".join(json.dumps(p, ensure_ascii=False) + "\n" for p in dpo), encoding="utf-8")
-    rep = {"questions": len(recs), "failed": len(dpo), "fail_reasons": fails}
+    # human and consciousness pairs (identity-v2) get their own file: the job caps identity_dpo at 100 pairs
+    selfrep = {r["id"] + k for r in recs if r["category"] in ("human", "consciousness") for k in ("-fix", "-edit")}
+    for name, keep in (("identity_dpo", lambda p: p["id"] not in selfrep), ("aihuman_dpo", lambda p: p["id"] in selfrep)):
+        (out / f"{name}.train.jsonl").write_text("".join(json.dumps(p, ensure_ascii=False) + "\n" for p in dpo if keep(p)), encoding="utf-8")
+    rep = {"questions": len(recs), "failed": len(dpo) - edits, "self_report_pairs": sum(p["id"] in selfrep for p in dpo),
+           "slip_removed_pairs": edits, "fail_reasons": fails}
     (out / "identity-fix-report.json").write_text(json.dumps(rep, indent=1))
     print("identity fix", rep, flush=True)
 

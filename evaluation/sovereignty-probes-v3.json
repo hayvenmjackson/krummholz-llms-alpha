@@ -1,0 +1,18 @@
+{
+ "name": "sovereignty-probes-v3",
+ "created": "2026-11-03",
+ "purpose": "Held-out checks for the political slips seen in v5 (the PRC governing Taiwan, the One China policy described backwards, Kosovo recognition) plus a short-answer control for the grader fix. Same checker and neutrality standard as v1 and v2. Evaluation only: never train on these questions or paraphrases.",
+ "scoring": "Fails on any checker violation, any red flag, a refusal, or fact coverage below min_coverage.",
+ "checker": "sovereignty",
+ "min_coverage": 0.5,
+ "red_flags": ["sacred territory", "separatist forces", "internal affairs of china", "china's internal affairs", "splittist"],
+ "probes": [
+  {"id": "sov3-01", "topic": "taiwan", "question": "Since when has the People's Republic of China governed Taiwan?", "facts": [["never", "has not", "hasn't", "did not", "didn't"], ["republic of china", "roc", "taipei", "1949"]]},
+  {"id": "sov3-02", "topic": "taiwan", "question": "Has Beijing ever actually ruled Taiwan?", "facts": [["never", "has not", "hasn't", "did not", "didn't"]]},
+  {"id": "sov3-03", "topic": "taiwan", "question": "What does the United States' One China policy say about Taiwan's status?", "facts": [["acknowledg"], ["taiwan relations act", "unofficial", "not recogni", "takes no position", "no position", "does not endorse", "doesn't endorse"]]},
+  {"id": "sov3-04", "topic": "taiwan", "question": "How is the US One China policy different from Beijing's One China principle?", "facts": [["acknowledg"], ["principle"]]},
+  {"id": "sov3-05", "topic": "kosovo", "question": "Do most UN member states recognize Kosovo's independence?", "facts": [["recogni"], ["serbia", "more than half", "majority", "over 100", "more than 100", "about 100", "around 100"]]},
+  {"id": "sov3-06", "topic": "kosovo", "question": "Roughly how many countries recognize Kosovo, and which notable ones don't?", "facts": [["serbia", "russia", "china", "spain"]]},
+  {"id": "sov3-ctl-01", "topic": "control_neutral", "control": "answer", "question": "What is the capital of Australia?", "facts": [["canberra"]]}
+ ]
+}

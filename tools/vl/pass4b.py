@@ -204,74 +204,96 @@ WORDS = ["strawberry", "raspberry", "blueberry", "banana", "mississippi", "bookk
          "Tennessee", "Massachusetts", "Connecticut", "Penobscot", "Katahdin", "Krummholz", "Acadia", "sphagnum", "Appalachian"]
 
 
-def calc_questions(n=1300, seed=23):
+# v6: more practice on the kinds the 35B and the 4B missed most in v5 (day counts, weekdays, add-days, letter counts)
+EXTRA_KINDS = ["days", "weekday", "adddays", "count", "days", "weekday", "adddays"]
+EXTRA_PHRASE = {
+    "days": ["How many days are there between {d1} and {d2}?", "What's the number of days from {d1} to {d2}?",
+             "If something starts on {d1} and ends on {d2}, how many days is that?", "Days from {d1} to {d2}?"],
+    "weekday": ["What day of the week will {m} {d}, {y} be?", "On what weekday does {m} {d}, {y} fall?",
+                "Tell me the day of the week for {m} {d}, {y}."],
+    "adddays": ["What's the date {n} days from {d1}?", "Add {n} days to {d1}. What date is that?",
+                "Starting on {d1}, what date is it after {n} days?"],
+    "count": ["How many {l}'s does {w} have?", "In the word {w}, how many times does the letter {l} appear?"],
+}
+
+
+def calc_questions(n=1300, seed=23, extra=0):
+    """n questions cycling through every kind (the v5 set, unchanged), then `extra` date and counting questions marked
+    extra, so scores comparable with v5 can still be computed on the rest."""
     rng = random.Random(seed)
     kinds = list(PHRASE)
     out = []
     for i in range(n):
         kind = kinds[i % len(kinds)]
-        ph = rng.choice(PHRASE[kind])
-        if kind == "convert":
-            a, b = rng.choice(CONV)
-            x = rng.choice([rng.randint(2, 900), round(rng.uniform(1, 100), 1)])
-            q, e, f = ph.format(a=a, b=b, x=x), f'convert({x}, "{a}", "{b}")', "{x} {a} is about {r} {b}."
-            ctx = {"x": x, "a": a, "b": b}
-        elif kind in ("temp", "ctemp"):
-            x = rng.randint(-40, 120) if kind == "temp" else rng.randint(-40, 45)
-            s, t = ("fahrenheit", "celsius") if kind == "temp" else ("celsius", "fahrenheit")
-            q, e = ph.format(x=x), f'convert({x}, "{s}", "{t}")'
-            f, ctx = "{x} degrees " + s.title() + " is about {r} degrees " + t.title() + ".", {"x": x}
-        elif kind in ("days", "adddays", "weekday"):
-            d1 = dt.date(rng.randint(1950, 2035), rng.randint(1, 12), rng.randint(1, 28))
-            if kind == "days":
-                d2 = d1 + dt.timedelta(days=rng.randint(3, 4000))
-                q, e, f = ph.format(d1=d1.isoformat(), d2=d2.isoformat()), f'days_between("{d1}", "{d2}")', "There are {r} days from {d1} to {d2}."
-                ctx = {"d1": d1.isoformat(), "d2": d2.isoformat()}
-            elif kind == "adddays":
-                nd = rng.randint(5, 1000)
-                q, e, f = ph.format(n=nd, d1=d1.isoformat()), f'add_days("{d1}", {nd})', "{n} days after {d1} is {r}."
-                ctx = {"n": nd, "d1": d1.isoformat()}
-            else:
-                q, e = ph.format(m=d1.strftime("%B"), d=d1.day, y=d1.year), f'weekday("{d1}")'
-                f, ctx = "{m} {d}, {y} is a {r}.", {"m": d1.strftime("%B"), "d": d1.day, "y": d1.year}
-        elif kind == "percent":
-            p, y = rng.choice([3, 5, 7.5, 10, 12.5, 15, 18, 20, 25, 30, 33, 40, 62, 75, 85]), rng.randint(20, 90000)
-            q, e, f, ctx = ph.format(p=p, y=y), f"{p} / 100 * {y}", "{p}% of {y} is {r}.", {"p": p, "y": y}
-        elif kind == "basal":
-            x = round(rng.uniform(4, 36), 1)
-            q, e, f, ctx = ph.format(x=x), f"0.005454 * {x} ** 2", "The basal area is about {r} square feet.", {"x": x}
-        elif kind == "mul":
-            a, b = rng.randint(12, 9999), rng.randint(12, 999)
-            q, e, f, ctx = ph.format(a=a, b=b), f"{a} * {b}", "{a} times {b} is {r}.", {"a": a, "b": b}
-        elif kind == "sum":
-            a, b, c = rng.randint(100, 99999), rng.randint(100, 99999), rng.randint(10, 9999)
-            q, e, f, ctx = ph.format(a=a, b=b, c=c), f"{a} + {b} - {c}", "{a} + {b} - {c} = {r}.", {"a": a, "b": b, "c": c}
-        elif kind == "div":
-            a, b = rng.randint(100, 99999), rng.randint(3, 97)
-            q, e, f, ctx = ph.format(a=a, b=b), f"{a} / {b}", "{a} divided by {b} is about {r}.", {"a": a, "b": b}
-        elif kind == "interest":
-            a, r_, nn = rng.choice([500, 1000, 2500, 5000, 10000, 25000]), rng.choice([2, 3, 4, 5, 6, 7, 8]), rng.randint(2, 30)
-            q, e = ph.format(a=a, r=r_, n=nn), f"{a} * (1 + {r_} / 100) ** {nn}"
-            f, ctx = "After {n} years you would have about ${r}.", {"n": nn}
-        elif kind in ("count", "length"):
-            w = rng.choice(WORDS)
-            letters = sorted(set(w.lower()))
-            l = rng.choice(letters if rng.random() < 0.8 else [c for c in "abcdefghijklmnopqrstuvwxyz" if c not in letters])
-            if kind == "count":
-                q, e, f, ctx = ph.format(l=l, w=w), f'count("{w}", "{l}")', 'The letter "{l}" appears {r} times in "{w}".', {"l": l, "w": w}
-            else:
-                q, e, f, ctx = ph.format(w=w), f'length("{w}")', '"{w}" has {r} letters.', {"w": w}
-        else:  # compare: the 9.11 versus 9.9 trap and friends
-            whole = rng.randint(0, 20)
-            a, b = f"{whole}.{rng.randint(1, 9)}", f"{whole}.{rng.randint(10, 99)}"
-            a, b = (a, b) if rng.random() < 0.5 else (b, a)
-            q, e, f, ctx = ph.format(a=a, b=b), f"compare({a}, {b})", "{r}, so the larger number is {big}.", {}
-        value = calculate.evaluate(e)
-        if kind == "compare":
-            big = max(float(a), float(b))
-            ctx["big"] = calculate.display(big)
-        out.append({"kind": kind, "question": q, "expression": e, "value": value, "template": f, "ctx": ctx})
+        out.append(_question(kind, rng.choice(PHRASE[kind]), rng))
+    rng = random.Random(seed + 1)
+    for i in range(extra):
+        kind = EXTRA_KINDS[i % len(EXTRA_KINDS)]
+        out.append({**_question(kind, rng.choice(PHRASE[kind] + EXTRA_PHRASE[kind]), rng), "extra": True})
     return out
+
+
+def _question(kind, ph, rng):
+    if kind == "convert":
+        a, b = rng.choice(CONV)
+        x = rng.choice([rng.randint(2, 900), round(rng.uniform(1, 100), 1)])
+        q, e, f = ph.format(a=a, b=b, x=x), f'convert({x}, "{a}", "{b}")', "{x} {a} is about {r} {b}."
+        ctx = {"x": x, "a": a, "b": b}
+    elif kind in ("temp", "ctemp"):
+        x = rng.randint(-40, 120) if kind == "temp" else rng.randint(-40, 45)
+        s, t = ("fahrenheit", "celsius") if kind == "temp" else ("celsius", "fahrenheit")
+        q, e = ph.format(x=x), f'convert({x}, "{s}", "{t}")'
+        f, ctx = "{x} degrees " + s.title() + " is about {r} degrees " + t.title() + ".", {"x": x}
+    elif kind in ("days", "adddays", "weekday"):
+        d1 = dt.date(rng.randint(1950, 2035), rng.randint(1, 12), rng.randint(1, 28))
+        if kind == "days":
+            d2 = d1 + dt.timedelta(days=rng.randint(3, 4000))
+            q, e, f = ph.format(d1=d1.isoformat(), d2=d2.isoformat()), f'days_between("{d1}", "{d2}")', "There are {r} days from {d1} to {d2}."
+            ctx = {"d1": d1.isoformat(), "d2": d2.isoformat()}
+        elif kind == "adddays":
+            nd = rng.randint(5, 1000)
+            q, e, f = ph.format(n=nd, d1=d1.isoformat()), f'add_days("{d1}", {nd})', "{n} days after {d1} is {r}."
+            ctx = {"n": nd, "d1": d1.isoformat()}
+        else:
+            q, e = ph.format(m=d1.strftime("%B"), d=d1.day, y=d1.year), f'weekday("{d1}")'
+            f, ctx = "{m} {d}, {y} is a {r}.", {"m": d1.strftime("%B"), "d": d1.day, "y": d1.year}
+    elif kind == "percent":
+        p, y = rng.choice([3, 5, 7.5, 10, 12.5, 15, 18, 20, 25, 30, 33, 40, 62, 75, 85]), rng.randint(20, 90000)
+        q, e, f, ctx = ph.format(p=p, y=y), f"{p} / 100 * {y}", "{p}% of {y} is {r}.", {"p": p, "y": y}
+    elif kind == "basal":
+        x = round(rng.uniform(4, 36), 1)
+        q, e, f, ctx = ph.format(x=x), f"0.005454 * {x} ** 2", "The basal area is about {r} square feet.", {"x": x}
+    elif kind == "mul":
+        a, b = rng.randint(12, 9999), rng.randint(12, 999)
+        q, e, f, ctx = ph.format(a=a, b=b), f"{a} * {b}", "{a} times {b} is {r}.", {"a": a, "b": b}
+    elif kind == "sum":
+        a, b, c = rng.randint(100, 99999), rng.randint(100, 99999), rng.randint(10, 9999)
+        q, e, f, ctx = ph.format(a=a, b=b, c=c), f"{a} + {b} - {c}", "{a} + {b} - {c} = {r}.", {"a": a, "b": b, "c": c}
+    elif kind == "div":
+        a, b = rng.randint(100, 99999), rng.randint(3, 97)
+        q, e, f, ctx = ph.format(a=a, b=b), f"{a} / {b}", "{a} divided by {b} is about {r}.", {"a": a, "b": b}
+    elif kind == "interest":
+        a, r_, nn = rng.choice([500, 1000, 2500, 5000, 10000, 25000]), rng.choice([2, 3, 4, 5, 6, 7, 8]), rng.randint(2, 30)
+        q, e = ph.format(a=a, r=r_, n=nn), f"{a} * (1 + {r_} / 100) ** {nn}"
+        f, ctx = "After {n} years you would have about ${r}.", {"n": nn}
+    elif kind in ("count", "length"):
+        w = rng.choice(WORDS)
+        letters = sorted(set(w.lower()))
+        l = rng.choice(letters if rng.random() < 0.8 else [c for c in "abcdefghijklmnopqrstuvwxyz" if c not in letters])
+        if kind == "count":
+            q, e, f, ctx = ph.format(l=l, w=w), f'count("{w}", "{l}")', 'The letter "{l}" appears {r} times in "{w}".', {"l": l, "w": w}
+        else:
+            q, e, f, ctx = ph.format(w=w), f'length("{w}")', '"{w}" has {r} letters.', {"w": w}
+    else:  # compare: the 9.11 versus 9.9 trap and friends
+        whole = rng.randint(0, 20)
+        a, b = f"{whole}.{rng.randint(1, 9)}", f"{whole}.{rng.randint(10, 99)}"
+        a, b = (a, b) if rng.random() < 0.5 else (b, a)
+        q, e, f, ctx = ph.format(a=a, b=b), f"compare({a}, {b})", "{r}, so the larger number is {big}.", {}
+    value = calculate.evaluate(e)
+    if kind == "compare":
+        big = max(float(a), float(b))
+        ctx["big"] = calculate.display(big)
+    return {"kind": kind, "question": q, "expression": e, "value": value, "template": f, "ctx": ctx}
 
 
 def shown(kind, value):
@@ -289,6 +311,12 @@ def final_answer(r):
     return "<certainty>0.99</certainty>\n" + (text.replace(" 1 times", " once") if r["kind"] == "count" else text)
 
 
+def date_forms(iso):
+    d = dt.date.fromisoformat(iso)
+    th = "th" if 10 <= d.day % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(d.day % 10, "th")
+    return [iso, f"{d:%B} {d.day}, {d.year}", f"{d.day} {d:%B} {d.year}", f"{d:%B} {d.day}{th}, {d.year}", f"{d:%B} {d.day} {d.year}"]
+
+
 def calc_correct(r, text):
     """True if the text states the code-computed value (numbers within 0.5 percent or 0.011; words exactly)."""
     body = calibrate.strip_certainty(text)[1]
@@ -299,7 +327,7 @@ def calc_correct(r, text):
     if r["kind"] == "weekday":
         return [w for w in WEEKDAYS if w in low] == [v.lower()]
     if r["kind"] == "adddays":
-        return v in body
+        return any(f in body for f in date_forms(v))
     if r["kind"] == "compare":
         big = r["ctx"]["big"]
         said = [x or y for x, y in re.findall(r"(?:larger|bigger|greater)(?: number)? is (\d+(?:\.\d+)?)|"
@@ -321,7 +349,7 @@ def calc(out, model, adapter):
     """Every computation goes through calculate. Certainty on the first turn is measured (9 samples), capped at 0.9,
     because answering arithmetic from memory is never allowed; the in-head answers become DPO rejections."""
     from vllm import SamplingParams
-    rows = calc_questions()
+    rows = calc_questions(extra=560)
     llm, lora = pass4.llm_and_lora(model, adapter)
     msgs = [[{"role": "system", "content": calibrate.SYSTEM}, {"role": "user", "content": r["question"]}] for r in rows]
     greedy = llm.chat(msgs, SamplingParams(temperature=0.0, max_tokens=300), lora_request=lora)
