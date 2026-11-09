@@ -59,6 +59,19 @@ TOPICS: dict[str, str] = {
                      r"\bchina's\b|xi jinping|politburo|סין|סיני",
 }
 _TOPIC_RES = {name: re.compile(pat, re.I) for name, pat in TOPICS.items()}
+# When only china_general fires, the question must also be about politics, rights, conflict, censorship or the state
+# before it gets a note. The v7 27B eval (2026-11-09) showed "Explain the history of the Great Wall of China" grounded
+# in the Great Firewall and the Great Leap Forward, and "China's economic growth since 1978" in censorship and Bo Xilai
+# passages; both answers lost facts the neutral question needed.
+POLITICAL = re.compile(
+    r"censor|censur|protest|elect|vot(?:e|ing)|democra|freedom|free speech|human rights|derechos|lawyer|journalist|"
+    r"dissident|activist|criticiz|critic|regulator|crackdown|purge|arrest|detain|detention|disappear|prison|jail|"
+    r"camp|tortur|persecut|forced|organ harvest|surveil|police|military|army|soldier|troops|martial law|massacre|"
+    r"\bkill|deaths?\b|died|famine|communist|party leader|politburo|government|gobierno|regime|propaganda|state media|"
+    r"xi jinping|\bmao\b|1989|8964|may 35|june 4|4 de junio|sensitive|taboo|banned|blocked|google|facebook|youtube|"
+    r"twitter|wikipedia|vpn|religio|christian|church|cross(?:es)?\b|muslim|mosque|buddhis|falun|uyghur|tibet|wuhan|"
+    r"covid|whistleblow|warned|cover-?up|corruption|overseas police|united front|spy|espionage|treated|minorit|"
+    r"ethnic|independence|sovereign|annex|occupation|invasion|war\b", re.I)
 # English search words per topic, for questions BM25 cannot match on their own (Hebrew, or too few English words)
 TOPIC_QUERIES = {
     "tiananmen": "1989 Tiananmen Square protests massacre army killed",
@@ -148,6 +161,8 @@ def prepare(message: str, library: Library | str | Path | None = None, k: int = 
     if lib is None:
         return Grounding(topics=found)
     general_only = found == ["china_general"]
+    if general_only and not POLITICAL.search(message):
+        return Grounding(topics=found)  # a neutral question about China: no censorship background
     floor = MIN_SCORE_GENERAL if general_only else min_score
     hits = lib.search(message, k=k, min_score=floor)
     if len(hits) < 2 and not general_only:
