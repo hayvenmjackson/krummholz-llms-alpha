@@ -5,7 +5,7 @@
 # Stage A+C: SFT then DPO (train_vl.py). Stage B: GRPO with verifiable math rewards (tools/v7/grpo.py), optional.
 # Teacher and judge: OLMo 3.1 32B Instruct. No Claude-written training text.
 #   MODEL=Qwen/Qwen3.5-4B NAME=atlantic-lite-4b      (H100)  Atlantic Lite: phones and low-end hardware
-#   MODEL=Qwen/Qwen3.8-27B NAME=atlantic-27b         (H200)  Atlantic: personal assistant
+#   MODEL=Qwen/Qwen3.8-27B NAME=atlantic-27b         (H200)  Atlantic: general-purpose AI model
 #   MODEL=Qwen/Qwen3.6-35B-A3B NAME=core-35b-a3b     (H200)  shared core; Acadia and Katahdin adapters train on it next
 # Changes from v5: every intermediate file lives on the volume (a stopped pod loses nothing and the job resumes), a
 # training smoke test runs before the data stages (falls back to one example at a time if micro-batching fails),

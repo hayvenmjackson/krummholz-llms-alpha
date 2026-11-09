@@ -1,11 +1,11 @@
 """Every hard-coded rule a Krummholz model reply passes through, in one order, for any runtime.
 
 The rules are code, not training: whatever the weights write, the reply a person sees has been through every one.
-Pure Python with no dependencies, like the guards themselves. English only.
+Pure Python with no dependencies, like the guards themselves. English only, except the branding guard (five languages).
 """
 from __future__ import annotations
 
-from . import crisis, disclosure, endorsement, loops, origin, sovereignty, stance
+from . import branding, crisis, disclosure, endorsement, loops, origin, sovereignty, stance
 
 
 def finalize(message: str, reply: str, product: str | None = None, first_turn: bool = False,
@@ -16,6 +16,9 @@ def finalize(message: str, reply: str, product: str | None = None, first_turn: b
     text, _ = loops.guard(reply or "")
     # G4: never endorse a candidate or party, never tell a user how to vote (v7 plan, principle 5).
     text, _ = endorsement.guard(text)
+    # Only Acadia and Katahdin call themselves assistants; every other product is an AI model (identity-v3 spec).
+    # Before origin and disclosure, which then see "AI model" and accept it as a plain AI statement.
+    text, _ = branding.guard(text, product)
     # Neither claims nor flatly rules out feelings or consciousness (Krummholz AI's stance: an open question).
     text = stance.finalize(message, text)
     # No side's territorial claim stated as settled fact and no known false fact, the same rule for every dispute.
