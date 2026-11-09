@@ -320,7 +320,7 @@ def build_rows(res, per_problem=2, easy_frac=0.2, seed=13, round_tag="r1"):
         uniq = list({re.sub(r"\s+", " ", c["reply"]): c for c in pos}.values())
         rng.shuffle(uniq)
         for c in uniq[: 1 if all_pos else per_problem]:
-            text = c["reply"] if c["kind"] == "code" else c["reply"].replace("—", ", ")
+            text = c["reply"] if c["kind"] == "code" else c["reply"].replace(chr(0x2014), ", ")
             sft.append({"id": f"{c['id']}-{round_tag}", "source": f"rsi-{round_tag}-{c['kind']}",
                         "messages": [{"role": "user", "content": c["prompt"]}], "target": text})
         if neg:

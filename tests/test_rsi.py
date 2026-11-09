@@ -115,10 +115,11 @@ class Build(unittest.TestCase):
         self.assertLess(len(sft), 70); self.assertGreater(len(sft), 15)
 
     def test_no_em_dash_in_math_targets(self):
-        res = rsi.label_rows([cand("p", 0, "first — then \\boxed{5}", answer="5", verified=True),
+        dash = chr(0x2014)
+        res = rsi.label_rows([cand("p", 0, f"first {dash} then \\boxed{{5}}", answer="5", verified=True),
                               cand("p", 1, "nope, so \\boxed{6}", answer="6", verified=False)], "verified")
         sft, _, _ = rsi.build_rows(res)
-        self.assertNotIn("—", sft[0]["target"])
+        self.assertNotIn(dash, sft[0]["target"])
 
 
 class Stats(unittest.TestCase):
