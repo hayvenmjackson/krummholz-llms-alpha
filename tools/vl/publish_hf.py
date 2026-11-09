@@ -1,4 +1,4 @@
-"""Publish release GGUFs (v6 beta, v7 Lite) to Hugging Face from the network volume, one model repo per model.
+"""Publish release GGUFs (v6 beta; v7 Atlantic Lite and Atlantic 27B) to Hugging Face from the network volume, one model repo per model.
 
 Runs on a pod with the volume at $VOL (default /workspace) and HF_TOKEN from a RunPod secret, which is never printed.
 Each repo is created private and gets its model card from this repository as README.md, then the files in the card's
@@ -30,9 +30,10 @@ MODELS = {
 V7 = V6.parent / "krummholz-v7"
 MODELS_V7 = {
     "atlantic-lite-4b-v7-GGUF": ("atlantic-lite-4b-v7", ["rlaif1/atlantic-lite-4b", "atlantic-lite-4b"]),
+    "atlantic-27b-v7-GGUF": ("atlantic-27b-v7", ["rlaif1/atlantic-27b", "atlantic-27b"]),
 }
 RELEASES = {"v6": (V6, MODELS), "v7": (V7, MODELS_V7)}
-FROM_EARLIER_RUN = {"LICENSE-base.txt", "mmproj-krummholz-atlantic-lite-4b-v7-f16.gguf"}
+FROM_EARLIER_RUN = {"LICENSE-base.txt", "mmproj-krummholz-atlantic-lite-4b-v7-f16.gguf", "mmproj-krummholz-atlantic-27b-v7-f16.gguf"}
 FILE_ROW = re.compile(r"^\| `([^`]+)` \|", re.M)
 
 
