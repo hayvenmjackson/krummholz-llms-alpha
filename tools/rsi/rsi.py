@@ -416,8 +416,11 @@ def score(p, text):
     if p["kind"] == "math":
         return verify.math_ok(text, p["answer"])
     code = verify.code_block(text)
-    if p.get("prefix") and "def " not in code:  # body only: put the signature back
-        code = p["prefix"] + code
+    if p.get("prefix"):
+        if "def " not in code:  # body only: put the signature back
+            code = p["prefix"] + code
+        else:  # the prompt's imports (from typing import List, ...), which a full-function reply often leaves out
+            code = "\n".join(l for l in p["prefix"].splitlines() if re.match(r"\s*(?:import|from)\s", l)) + "\n" + code
     return verify.run_tests(code, p["tests"])[0]
 
 

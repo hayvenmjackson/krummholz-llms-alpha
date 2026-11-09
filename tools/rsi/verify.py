@@ -49,7 +49,7 @@ def code_block(text: str) -> str:
 
 def _limits():  # Linux pods only: memory and CPU caps for the child, no core files
     import resource
-    resource.setrlimit(resource.RLIMIT_AS, (2 << 30, 2 << 30))
+    resource.setrlimit(resource.RLIMIT_AS, (6 << 30, 6 << 30))  # 2 GB broke numpy imports (HumanEval+ tests use it)
     resource.setrlimit(resource.RLIMIT_CPU, (20, 20))
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
@@ -62,7 +62,8 @@ def run_tests(code: str, tests: list[str] | str, timeout: float = 10.0) -> tuple
     with tempfile.TemporaryDirectory() as d:
         p = Path(d) / "t.py"
         p.write_text(src, encoding="utf-8")
-        env = {"PATH": os.environ.get("PATH", ""), "PYTHONHASHSEED": "0", "PYTHONDONTWRITEBYTECODE": "1"}
+        env = {"PATH": os.environ.get("PATH", ""), "PYTHONHASHSEED": "0", "PYTHONDONTWRITEBYTECODE": "1",
+               "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"}
         if os.name == "nt":
             env["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", "")
         try:

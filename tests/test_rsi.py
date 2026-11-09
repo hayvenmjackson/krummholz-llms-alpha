@@ -42,6 +42,14 @@ class Verifier(unittest.TestCase):
             del os.environ["RSI_SECRET_PROBE"]
         self.assertTrue(ok)
 
+    def test_humaneval_score_keeps_prompt_imports(self):
+        prefix = "from typing import List\n\n\ndef total(xs: List[int]) -> int:\n    \"\"\"Sum.\"\"\"\n"
+        test = "def check(candidate):\n    assert candidate([1, 2]) == 3\n"
+        p = {"set": "humanevalplus", "kind": "code", "prefix": prefix, "tests": [verify.humaneval_tests(prefix, test)]}
+        full = "```python\ndef total(xs: List[int]) -> int:\n    return sum(xs)\n```"
+        body = "```python\n    return sum(xs)\n```"
+        self.assertTrue(rsi.score(p, full)); self.assertTrue(rsi.score(p, body))
+
     def test_humaneval_tests(self):
         t = verify.humaneval_tests("def helper(x):\n    pass\ndef f(x):\n    \"\"\"doc\"\"\"\n", "def check(c):\n    assert c(1) == 1\n")
         self.assertTrue(t.rstrip().endswith("check(f)"))
