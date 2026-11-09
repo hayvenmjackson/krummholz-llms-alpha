@@ -44,7 +44,7 @@ def math_ok(text: str, ref) -> bool:
 
 def code_block(text: str) -> str:
     blocks = FENCE.findall(text or "")
-    return (blocks[-1] if blocks else (text or "")).strip()
+    return (blocks[-1] if blocks else (text or "")).strip("\n").rstrip()  # keep indentation: a reply may be a body only
 
 
 def _limits():  # Linux pods only: memory and CPU caps for the child, no core files
