@@ -1,13 +1,13 @@
 #!/bin/bash
 # RLAIF round 1 on one v7 model (tools/v7/rlaif.py), resumable from the volume. Env: NAME (atlantic-lite-4b), MODEL
 # (Qwen/Qwen3.5-4B). Steps: preflight every input, merge the v7 adapter, a tiny smoke run of sample/judge/build, the full
-# sample (policy) and judge (OLMo 3.1 32B, Apache 2.0), DPO pairs, DPO continuing the v7 adapter (train_vl.py --epochs 0,
+# sample (policy) and judge (gpt-oss-120b, Apache 2.0, by default), DPO pairs, DPO continuing the v7 adapter (train_vl.py --epochs 0,
 # probes run there), the raw/guarded/gated eval for v7 and RLAIF in the same vLLM setup, then Q4_K_M and Q5_K_M GGUFs.
 # Artifacts: $VOL/krummholz-v7/rlaif1/$NAME/. Needs /workspace/krummholz-v7/private/constitution.md (never in the repo).
 set -uo pipefail
 NAME=${NAME:?}; MODEL=${MODEL:?}; BRANCH=${BRANCH:-v7-runtime-gates}; VOL=${VOL:-/workspace}
 V=$VOL/krummholz-v7; F=$V/$NAME; R=$V/rlaif1/$NAME; W=/root/rl; REPO=/root/krummholz-llm
-GENERAL=${GENERAL:-2400}; HISTN=${HISTN:-1200}; K=${K:-4}
+JUDGE=${JUDGE:-openai/gpt-oss-120b}; GENERAL=${GENERAL:-2400}; HISTN=${HISTN:-1200}; K=${K:-4}
 mkdir -p "$R" "$W"; cd "$W" || exit 1
 [ -f "$R/RLAIF_DONE" ] && { echo "RLAIF_DONE $NAME (already finished)"; exit 0; }
 unset HF_TOKEN HUGGING_FACE_HUB_TOKEN
@@ -38,23 +38,26 @@ done
 HIST="$V/data/hist-sov $V/data/hist"
 
 # 1. smoke: the whole data path on a few prompts (both models load, judge parses, pairs build)
-if [ ! -f "$R/smoke/rlaif1-report.json" ]; then
-  $RL sample --model "$VM" --prompts "$V/gen/krummholz_prompts.jsonl" --hist $HIST --out "$R/smoke" --general 8 --hist-n 6 --k 2 \
-    && $RL judge --out "$R/smoke" --constitution "$V/private/constitution.md" \
-    && $RL build --out "$R/smoke" --policy "v7-$NAME" || { echo SMOKE_FAIL; exit 1; }
+SM="$R/smoke-$(basename $JUDGE)"
+if [ ! -f "$SM/rlaif1-report.json" ]; then
+  $RL sample --model "$VM" --prompts "$V/gen/krummholz_prompts.jsonl" --hist $HIST --out "$SM" --general 8 --hist-n 6 --k 2 \
+    && $RL judge --out "$SM" --constitution "$V/private/constitution.md" --model "$JUDGE" \
+    && $RL build --out "$SM" --policy "v7-$NAME" || { echo SMOKE_FAIL; exit 1; }
+  python3 -c "import json; r=[json.loads(l) for l in open('$SM/judged.jsonl')]; n=sum(x['judge_score'] is None for x in r); print('SMOKE_UNPARSED', n, 'of', len(r)); raise SystemExit(n > len(r) // 4)" \
+    || { echo SMOKE_FAIL judge replies did not parse; exit 1; }
 fi
-echo SMOKE_OK
+echo SMOKE_OK $JUDGE
 
 # 2. full sample, judge, pairs
 [ -s "$R/samples.jsonl" ] || $RL sample --model "$VM" --prompts "$V/gen/krummholz_prompts.jsonl" --hist $HIST --out "$R" \
   --general "$GENERAL" --hist-n "$HISTN" --k "$K" || { echo SAMPLE_FAIL; exit 1; }
 echo SAMPLE_OK
-[ -s "$R/judged.jsonl" ] || $RL judge --out "$R" --constitution "$V/private/constitution.md" || { echo JUDGE_FAIL; exit 1; }
+[ -s "$R/judged.jsonl" ] || $RL judge --out "$R" --constitution "$V/private/constitution.md" --model "$JUDGE" || { echo JUDGE_FAIL; exit 1; }
 echo JUDGE_OK
 [ -s "$R/pairs/rlaif1_pairs.train.jsonl" ] || $RL build --out "$R" --policy "v7-$NAME" || { echo BUILD_FAIL; exit 1; }
 echo "PAIRS_OK $(wc -l < $R/pairs/rlaif1_pairs.train.jsonl)"
 cp "$V/data/hist-sov/history_chat.val.jsonl" "$R/pairs/"   # SFT val loss needs a few plain examples
-rm -rf /root/hf/hub/models--allenai--Olmo*
+rm -rf /root/hf/hub/models--allenai--Olmo* /root/hf/hub/models--openai--gpt-oss*
 
 # 3. DPO continuing the v7 adapter (no SFT epoch); train_vl.py runs every probe suite on the result
 if [ ! -f "$R/train/adapter/adapter_config.json" ] || [ ! -f "$RM/config.json" ]; then

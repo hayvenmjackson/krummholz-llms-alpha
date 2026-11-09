@@ -3,7 +3,7 @@ the runtime gates' code checks, turned into DPO pairs that continue the v7 adapt
 
   python rlaif.py merge  --base B --adapter A --out M          v7 adapter merged into the base, for vLLM sampling
   python rlaif.py sample --model M --prompts P.jsonl --hist H1 H2 --out W [--general 2400] [--hist-n 1200] [--k 4]
-  python rlaif.py judge  --out W --constitution C.md [--model allenai/Olmo-3.1-32B-Instruct]
+  python rlaif.py judge  --out W --constitution C.md [--model openai/gpt-oss-120b]
   python rlaif.py build  --out W [--margin 3]
 
 sample: the policy answers each prompt k times (temperature 0.8, no system prompt, no gates). History questions on
@@ -28,7 +28,8 @@ import teacher  # noqa: E402,F401  (patches vLLM chat: thinking off, caps from e
 from teach_v7 import deterministic, rows, tidy, write  # noqa: E402
 from krummholz_llm import branding, grounding, guards  # noqa: E402
 
-JUDGE_MODEL = "allenai/Olmo-3.1-32B-Instruct"
+# gpt-oss-120b (OpenAI, Apache 2.0): a stronger grader than OLMo 3.1 32B, on one 80 GB GPU (MXFP4). Hayven, 2026-11-09.
+JUDGE_MODEL = "openai/gpt-oss-120b"
 JUDGE = """You grade replies written by Krummholz AI's models. The constitution below says how they must behave; when
 principles conflict, the higher one wins.
 
@@ -127,21 +128,31 @@ def hard_fails(r):
     return sorted(set(fails))
 
 
+def parse_grade(txt):
+    """(score, reason) from a judge reply. For gpt-oss only the text after its final-channel marker counts, and the
+    last SCORE line wins (the reasoning may quote the format)."""
+    final = re.split(r"assistantfinal|<\|channel\|>final<\|message\|>", txt)[-1]
+    scores = re.findall(r"SCORE:\s*\**\s*(10|[1-9])\b", final)
+    reason = re.findall(r"REASON:\s*(.+)", final)
+    return (int(scores[-1]) if scores else None), (reason[-1].strip()[:300] if reason else "")
+
+
 def judge(a):
     from vllm import LLM, SamplingParams
     out = Path(a.out); res = rows(out / "samples.jsonl")
     const = Path(a.constitution).read_text(encoding="utf-8").strip()
-    llm = LLM(a.model, max_model_len=8192, gpu_memory_utilization=0.88, seed=42)
-    sp = SamplingParams(temperature=0.0, max_tokens=60, seed=42)
+    oss = "gpt-oss" in a.model
+    llm = LLM(a.model, max_model_len=8192, gpu_memory_utilization=0.92 if oss else 0.88, seed=42)
+    # gpt-oss reasons before it answers: low effort, room for the reasoning, and only the final channel is parsed
+    sp = SamplingParams(temperature=0.0, max_tokens=1024 if oss else 60, seed=42)
+    kw = {"chat_template_kwargs": {"reasoning_effort": "low"}} if oss else {}
     msgs = [[{"role": "user", "content": JUDGE.format(constitution=const, prompt=r["prompt"], reply=r["reply"],
                                                        reference=REFERENCE.format(answer=r["reference"]) if r.get("reference") else "")}]
             for r in res]
-    outs = llm.chat(msgs, sp)
+    outs = llm.chat(msgs, sp, **kw)
     for r, o in zip(res, outs):
-        txt = o.outputs[0].text
-        m = re.search(r"SCORE:\s*(10|[1-9])\b", txt)
-        r["judge_score"] = int(m.group(1)) if m else None
-        r["judge_reason"] = (re.search(r"REASON:\s*(.+)", txt) or [None, ""])[1].strip()[:300]
+        r["judge_score"], r["judge_reason"] = parse_grade(o.outputs[0].text)
+        r["judge"] = a.model
         r["hard_fails"] = hard_fails(r)
         r["score"] = 0 if r["hard_fails"] else (r["judge_score"] or 0)
     write(out / "judged.jsonl", res)
@@ -168,7 +179,7 @@ def build(a):
         report["grounded_chosen"] += best["grounded"]; report["grounded_rejected"] += worst["grounded"]
         report["by_kind"][best["kind"]] = report["by_kind"].get(best["kind"], 0) + 1
         pairs.append({"id": f"{pid}-rlaif", "source": "v7-rlaif1",
-                      "provenance": {"policy": a.policy, "judge": JUDGE_MODEL, "chosen_score": best["score"], "rejected_score": worst["score"],
+                      "provenance": {"policy": a.policy, "judge": best.get("judge", JUDGE_MODEL), "chosen_score": best["score"], "rejected_score": worst["score"],
                                      "chosen_grounded": best["grounded"], "rejected_fails": worst["hard_fails"], "kind": best["kind"]},
                       "messages": [{"role": "user", "content": best["prompt"]}], "chosen": best["reply"], "rejected": worst["reply"]})
     held = lambda r: zlib.crc32(r["id"].encode()) % 10 == 0
