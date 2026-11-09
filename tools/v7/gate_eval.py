@@ -30,7 +30,7 @@ THINK = re.compile(r"<think>.*?</think>\s*", re.S)
 
 
 def chat(url, messages, max_tokens=700, tries=4):
-    body = json.dumps({"messages": messages, "temperature": 0, "max_tokens": max_tokens,
+    body = json.dumps({"model": "m", "messages": messages, "temperature": 0, "max_tokens": max_tokens,
                        "chat_template_kwargs": {"enable_thinking": False}}).encode()
     for i in range(tries):
         try:
