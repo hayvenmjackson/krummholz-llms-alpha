@@ -24,7 +24,7 @@ from . import grounding
 from .sovereignty import ATTRIBUTION
 
 CHINA_TOPICS = {"tiananmen", "mao_era", "xinjiang", "tibet", "hong_kong", "taiwan", "dissidents", "religion",
-                "state_control", "china_disasters", "inner_mongolia"}
+                "state_control", "china_disasters", "inner_mongolia", "china_general"}
 
 # (name, topic it needs in the message or reply, or "china" for any China topic, or None, pattern on lowercased text)
 PHRASES: list[tuple[str, str | None, str]] = [

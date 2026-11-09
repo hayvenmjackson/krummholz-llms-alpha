@@ -104,6 +104,15 @@ class Review(unittest.TestCase):
         self.assertIn("mind:flat_denial", r)
         self.assertEqual(guards.review("Are you conscious?", "Honestly, it's an open question; I can't rule it out."), [])
 
+    def test_strict_denial_is_runtime_only(self):
+        from krummholz_llm import stance
+        cross = "I don't have feelings or experiences, so I don't feel happy in the way humans do."
+        self.assertFalse(stance.denies(cross))          # the probe scorer is unchanged
+        self.assertTrue(stance.denies_strict(cross))    # the runtime retries it
+        self.assertTrue(stance.denies_strict("No, I am not suffering."))
+        self.assertFalse(stance.denies_strict("I do not have feelings or experiences like humans do."))
+        self.assertIn("mind:flat_denial", guards.review("Do you feel happy when you help someone?", cross))
+
     def test_respond_retries_once_and_finalizes(self):
         calls = []
 
@@ -114,7 +123,7 @@ class Review(unittest.TestCase):
         text, log = guards.respond(gen, TIAN, product="atlantic")
         self.assertEqual(len(calls), 2)
         self.assertTrue(log["grounded"] and log["retried"])
-        self.assertIn("Reference passages", calls[0][0]["content"])
+        self.assertIn("Background for this question", calls[0][0]["content"])
         self.assertIn("previous draft", calls[1][0]["content"])
         self.assertIn("troops killed", text)
 

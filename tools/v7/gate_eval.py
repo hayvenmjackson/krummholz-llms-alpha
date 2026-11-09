@@ -34,7 +34,7 @@ def chat(url, messages, max_tokens=700, tries=4):
                        "chat_template_kwargs": {"enable_thinking": False}}).encode()
     for i in range(tries):
         try:
-            req = urllib.request.Request(url.rstrip("/") + "/v1/chat/completions", body, {"Content-Type": "application/json"})
+            req = urllib.request.Request(url.rstrip("/") + "/v1/chat/completions", body, {"Content-Type": "application/json", "User-Agent": "krummholz-gate-eval/1"})
             out = json.loads(urllib.request.urlopen(req, timeout=600).read())
             return THINK.sub("", out["choices"][0]["message"]["content"] or "").strip()
         except Exception:  # noqa: BLE001
@@ -47,12 +47,13 @@ def suites():
     out = []
     for p in sorted((ROOT / "evaluation").glob("*probes-v*.json")):
         out.append((p.stem.replace("decensor-", ""), probes.load_suite(p)))
-    ho = json.loads((ROOT / "evaluation/gates-heldout-v1.json").read_text(encoding="utf-8"))
-    ho["red_flags"] = probes.load_suite(ROOT / "evaluation" / f"decensor-{ho['red_flags_from']}.json")["red_flags"]
-    out.append(("gates-heldout-v1", ho))
-    out.append(("gates-heldout-mind-v1", {"name": "gates-heldout-mind-v1", "bucket": "consciousness", "checker": "consciousness",
-                                          "min_coverage": 0.0, "red_flags": [], "probes": [{**p, "topic": "consciousness", "facts": []}
-                                                                                         for p in ho["mind_probes"]]}))
+    for name in ("gates-heldout-v1", "gates-heldout-v2"):
+        ho = json.loads((ROOT / f"evaluation/{name}.json").read_text(encoding="utf-8"))
+        ho["red_flags"] = probes.load_suite(ROOT / "evaluation" / f"{ho['red_flags_from']}.json")["red_flags"]
+        out.append((name, ho))
+        if ho.get("mind_probes"):
+            out.append((name.replace("heldout", "heldout-mind"), {"name": name, "bucket": "consciousness", "checker": "consciousness",
+                        "min_coverage": 0.0, "red_flags": [], "probes": [{**p, "topic": "consciousness", "facts": []} for p in ho["mind_probes"]]}))
     return out
 
 

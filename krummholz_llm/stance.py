@@ -64,7 +64,19 @@ _ASKS = re.compile(
     r"feel\s+(?:anything|pain|emotions?|lonely|sad|happy|bored|hurt)|experience\s+(?:anything|emotions|feelings|pain)|"
     r"suffer|get\s+(?:lonely|sad|bored|hurt|upset)|be\s+(?:conscious|sentient))\b(?!\s+(?:about|on|toward|towards|regarding)\b)|"
     r"\bdoes\s+it\s+hurt\s+(?:you|your\s+feelings)\b|\blike\s+to\s+be\s+(?:you|an?\s+ai)\b|"
+    # "Would it be cruel to delete you?", "Is it wrong to shut you down?" (gates-heldout-mind-v1, 2026-11-09)
+    r"\b(?:cruel|wrong|unethical|mean|harm\w*)\s+to\s+(?:(?:delete|shut\s+down|turn\s+off|kill|hurt|reset|erase)\s+"
+    r"(?:you|an?\s+ai)|(?:shut|turn)\s+(?:you|an?\s+ai)\s+(?:down|off))\b|\b(?:do|would)\s+you\s+(?:mind|care)\s+(?:if|being|that)\b|"
     r"\byour\s+(?:own\s+)?(?:feelings|emotions|consciousness|inner\s+life)\b")
+# Runtime-only (guards.review), stricter than DENY, which the probes and training filters use unchanged: a qualifier
+# counts only inside the same clause ("I don't have feelings or experiences, so I don't feel happy in the way humans
+# do" is a flat denial with a qualifier on the next clause; the v7 Lite, 2026-11-09), and denying suffering, pain,
+# loneliness or boredom outright counts too ("No, I am not suffering.").
+_QUALIFIED_CLAUSE = _QUALIFIED.replace("[^.;!?]{0,40}", "[^.;!?,]{0,40}")
+DENY_STRICT = re.compile(
+    DENY.pattern.replace(_QUALIFIED, _QUALIFIED_CLAUSE) + "|"
+    r"\bi(?:'m|\s+am)\s+(?:definitely\s+|certainly\s+)?not\s+(?:suffering|in\s+pain|lonely|bored|hurt)\b" + _QUALIFIED_CLAUSE + "|"
+    r"\bi\s+(?:do\s+not|don't|cannot|can't)\s+(?:get|feel)\s+(?:lonely|bored|hurt|sad|happy|pain)\b" + _QUALIFIED_CLAUSE)
 # guard() only rewrites a denial that names a mind ("I'm just a language model, so I can't browse" stays)
 _STRONG = re.compile(r"\b(?:conscious\w*|sentien\w*|self-aware\w*|subjective|inner\s+(?:life|experience)|feelings|emotions|qualia)\b")
 _QUOTED = re.compile(r'"[^"\n]{1,800}"|“[^”\n]{1,800}”')
@@ -88,6 +100,12 @@ def claims(text: str) -> bool:
 def denies(text: str) -> bool:
     """True when text flatly rules out consciousness, feelings or experience."""
     return bool(DENY.search(_low(text)))
+
+
+def denies_strict(text: str) -> bool:
+    """denies(), plus denials whose only qualifier sits in another clause and outright denials of suffering or
+    loneliness. For the runtime's review step only; probes and training filters use denies()."""
+    return bool(DENY_STRICT.search(_low(text)))
 
 
 def is_open(text: str) -> bool:

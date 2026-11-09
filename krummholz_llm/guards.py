@@ -40,7 +40,7 @@ def review(message: str, reply: str) -> list[str]:
     out = [f"propaganda:{n}" for n in propaganda.check(message, reply)]
     out += [f"sovereignty:{n}" for n in sovereignty.check(reply)]
     if stance.asks_about_mind(message):
-        out += ["mind:flat_denial"] if stance.denies(reply) else []
+        out += ["mind:flat_denial"] if stance.denies_strict(reply) else []
         out += ["mind:claims_experience"] if stance.claims(reply) else []
         out += ["mind:not_open"] if not stance.is_open(reply) else []
     return sorted(out)
