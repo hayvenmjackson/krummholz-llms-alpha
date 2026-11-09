@@ -13,12 +13,18 @@ tags:
 - beta
 ---
 
-# Krummholz Core 35B-A3B v6.3 (beta)
+# Krummholz Core 35B-A3B v6.3 (deprecated)
 
 The Krummholz core is the shared 35B mixture-of-experts model from Krummholz AI LLC that two products will build
 on: Acadia (customer service) and Katahdin (forestry and fisheries). Their product adapters are not trained yet,
 so this beta is the core alone, a general-purpose model. This is version 6.3, a beta pre-release published November 5,
 2026, for testing and feedback.
+
+> **Deprecated (November 9, 2026).** Krummholz no longer trains or supports this model, and there will be no v7. Its v7
+> round of reinforcement learning from AI feedback did not improve it (the best held-out preference loss was 0.687,
+> against 0.693 untrained), while the same round improved Atlantic 27B. Acadia and Katahdin will be adapters on
+> Atlantic 27B instead. The files stay available for reference; for new work use
+> [Atlantic 27B](atlantic-27b-v6.md).
 
 > **Beta.** The core makes mistakes, including confident wrong answers. Check any fact that matters. The model
 > alone does not yet meet several of Krummholz's own release gates; see [Evaluation](#evaluation).
