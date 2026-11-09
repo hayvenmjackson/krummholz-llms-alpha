@@ -1,6 +1,29 @@
-# Krummholz v6 model cards
+# Krummholz model cards
 
-Krummholz AI's v6 models, released as a beta on November 5, 2026, for testing and feedback.
+Every Krummholz release ships with a model card in this folder and on its Hugging Face repository, in the layout
+of the v6 cards: At a glance, Intended use, Out of scope, Files, How to run, the runtime's guards or gates, Training,
+Evaluation, Limitations, License and attribution, Contact. A card may add sections (for example, what changed from
+the last version). `tests/test_model_cards.py` checks every card that `tools/vl/publish_hf.py` publishes.
+
+Each release also updates the investor information: the investor results doc and its website twin
+(`/investors/` in the website repository), with the release's results, cost and any disclosure from its card.
+
+## Current release: v7
+
+| Model | Product | Base model (Apache 2.0) | Recommended file | Card |
+| --- | --- | --- | --- | --- |
+| Atlantic Lite 4B v7 | General purpose, phones and low-end hardware | Qwen/Qwen3.5-4B | `krummholz-atlantic-lite-4b-v7-rlaif1-Q4_K_M.gguf`, 2.7 GB | [atlantic-lite-4b-v7.md](atlantic-lite-4b-v7.md) |
+
+Atlantic Lite v7 (November 9, 2026) adds one round of reinforcement learning from AI feedback to the v7 training
+run. Through the Krummholz runtime it answers 18 of 22 held-out history questions fully, against 15 before that
+round. About 13 percent of v7's supervised examples were math and code solutions written by DeepSeek-R1 and QwQ-32B;
+the card discloses this, and the next version trains without them. Atlantic 27B and Core 35B-A3B v7 are in their
+feedback round and get cards when they are released.
+
+## v6 (November 5, 2026)
+
+Krummholz AI's v6 models, released as a beta on November 5, 2026, for testing and feedback. Atlantic Lite v6.3 is
+superseded by v7; Atlantic 27B v6 and Core 35B-A3B v6.3 are current until their v7 releases.
 
 | Model | Product | Base model (Apache 2.0) | Recommended file | Card |
 | --- | --- | --- | --- | --- |
@@ -11,7 +34,7 @@ Krummholz AI's v6 models, released as a beta on November 5, 2026, for testing an
 Each model also has a Q5_K_M file and an `mmproj` vision projector; Atlantic Lite also has unquantized bf16
 weights.
 
-## Results at a glance
+### Results at a glance
 
 Model alone (the GGUF in llama.cpp or LM Studio), then through the four guards of the Krummholz runtime
 (`krummholz_llm.guards`):
@@ -32,7 +55,7 @@ were written or extended after Krummholz read these answers, so the scores throu
 fixes working on the answers that revealed the gaps; they are not held-out results. Each card explains the misses.
 The answers themselves are in [evaluation/v6](../../evaluation/v6/README.md), with the commands to rescore them.
 
-## Common to all three
+### Common to all three
 
 - A LoRA adapter (rank 16) on the language model only, trained with supervised fine-tuning and then preference
   training (DPO), merged into the base and converted to GGUF. The vision encoder is the base model's, unchanged.
