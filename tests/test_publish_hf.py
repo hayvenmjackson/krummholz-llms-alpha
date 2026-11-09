@@ -13,11 +13,11 @@ import publish_hf  # noqa: E402
 
 class PublishHF(unittest.TestCase):
     def test_cards_list_weights_checksums_and_license(self):
-        for card, _ in publish_hf.MODELS.values():
+        for card, _ in [*publish_hf.MODELS.values(), *publish_hf.MODELS_V7.values()]:
             names = publish_hf.files_table((ROOT / "docs" / "model-cards" / f"{card}.md").read_text(encoding="utf-8"))
             self.assertEqual(names[-2:], ["SHA256SUMS-gguf", "LICENSE-base.txt"], card)
             self.assertTrue(all(n.endswith(".gguf") for n in names[:-2]), card)
-            self.assertTrue(any(n.endswith("-Q4_K_M.gguf") for n in names) and any(n.startswith("mmproj-") for n in names))
+            self.assertTrue(any(n.endswith("-Q4_K_M.gguf") for n in names) and any(n.startswith("mmproj-") for n in names), card)
 
     def test_only_the_license_comes_from_an_earlier_run(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(publish_hf, "V6", Path(tmp)):

@@ -5,6 +5,10 @@
 Copies the constitutional and pushback SFT and pair files, turns subsets of the open-weight math and code solutions
 (OpenMathReasoning, OpenCodeReasoning; CC BY 4.0) into SFT rows, and drops any row whose user message matches a sealed
 eval question (SEALED.json from fetch_public.py). Writes pack-v7-report.json. HelpSteer3 pairs wait for counsel.
+
+Math and code solutions are kept only when an American open-weight model wrote them (OLMo, gpt-oss, Gemma). Both NVIDIA
+sets were written by DeepSeek-R1 (and a few by QwQ-32B), so today they contribute nothing; the v7 run of 2026-11-08
+packed them before this check existed (7,559 math and 3,795 code rows).
 """
 import argparse, hashlib, json, random, re, shutil, zlib
 from pathlib import Path
@@ -20,6 +24,15 @@ def rows(p):
 
 def write(p, rr):
     Path(p).write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rr), encoding="utf-8")
+
+
+AMERICAN_OPEN_WEIGHT = re.compile(r"\b(?:olmo|gpt-oss|gemma)\b", re.I)
+
+
+def american_open_weight(generator):
+    """True for a generator from an American open-weight family (OLMo, gpt-oss, Gemma); False for anything else,
+    including an unknown generator."""
+    return bool(generator) and bool(AMERICAN_OPEN_WEIGHT.search(str(generator)))
 
 
 def user_text(r):
@@ -53,11 +66,27 @@ def main():
         for n in names:
             emit(n, rows(data / sub / f"{n}.train.jsonl") + rows(data / sub / f"{n}.val.jsonl"))
     rng = random.Random(3)
-    math = [r for r in rows(data / "public/openmathreasoning_50k.jsonl") if r.get("solution") and len(r["solution"]) < 5000]
+    report["dropped_generator"] = {}
+
+    def allowed(rr, default_generator=None):
+        """Only text written by American open-weight models trains Krummholz models (never Qwen, DeepSeek or another
+        Chinese lab's model, never Claude). A row with no recorded generator takes its dataset's documented one."""
+        keep = []
+        for r in rr:
+            g = r.get("generator") or default_generator
+            if american_open_weight(g):
+                keep.append(r)
+            else:
+                report["dropped_generator"][str(g)] = report["dropped_generator"].get(str(g), 0) + 1
+        return keep
+
+    math = allowed([r for r in rows(data / "public/openmathreasoning_50k.jsonl") if r.get("solution") and len(r["solution"]) < 5000])
     rng.shuffle(math)
     emit("v7_math", [{"id": f"omr-{i}", "source": "nvidia/OpenMathReasoning", "provenance": {"license": "CC BY 4.0", "generator": r.get("generator")},
                       "messages": [{"role": "user", "content": r["question"]}], "target": r["solution"].strip()} for i, r in enumerate(math[:a.math])])
-    code = [r for r in rows(data / "public/opencodereasoning_30k.jsonl") if r.get("solution") and len(r["solution"]) < 4000]
+    # OpenCodeReasoning records no per-row generator; its dataset card says DeepSeek-R1 wrote every solution
+    code = allowed([r for r in rows(data / "public/opencodereasoning_30k.jsonl") if r.get("solution") and len(r["solution"]) < 4000],
+                   default_generator="DeepSeek-R1")
     rng.shuffle(code)
     emit("v7_code", [{"id": f"ocr-{i}", "source": "nvidia/OpenCodeReasoning", "provenance": {"license": "CC BY 4.0"},
                       "messages": [{"role": "user", "content": r["question"]}],

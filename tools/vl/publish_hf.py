@@ -1,14 +1,14 @@
-"""Publish the v6 beta GGUFs to Hugging Face from the network volume, one model repo per model.
+"""Publish release GGUFs (v6 beta, v7 Lite) to Hugging Face from the network volume, one model repo per model.
 
 Runs on a pod with the volume at $VOL (default /workspace) and HF_TOKEN from a RunPod secret, which is never printed.
 Each repo is created private and gets its model card from this repository as README.md, then the files in the card's
-Files table from the model's folder under $VOL/krummholz-v6 (only LICENSE-base.txt may come from the folder of the run
+Files table from the model's folder under the release's root on the volume, $VOL/krummholz-v6 or $VOL/krummholz-v7 (only LICENSE-base.txt may come from the folder of the run
 a fix started from). Files already on Hugging Face with the same contents are skipped, so a rerun resumes. A repo is
 made public only when every file there matches the volume: the SHA-256 of each GGUF, which for the weight files must
 also be the one SHA256SUMS-gguf recorded when they were quantized, and the git blob of every other file. The report
-goes to $VOL/krummholz-v6/hf-publish.json.
+goes to <release root>/hf-publish.json.
 
-    python3 tools/vl/publish_hf.py [--owner krummholz-ai] [--private]
+    python3 tools/vl/publish_hf.py [--release v6|v7] [--owner krummholz-ai] [--private]
 """
 import argparse
 import hashlib
@@ -25,7 +25,14 @@ MODELS = {
     "atlantic-27b-v6-GGUF": ("atlantic-27b-v6", ["atlantic-27b"]),
     "core-35b-a3b-v6.3-GGUF": ("core-35b-a3b-v6.3", ["core-35b-a3b-fix3", "core-35b-a3b"]),
 }
-FROM_EARLIER_RUN = {"LICENSE-base.txt"}
+# v7: Atlantic Lite after RLAIF round 1 (tools/v7/job_rlaif.sh). The weights come from the RLAIF folder; the base license
+# and the vision projector (which neither v7 training nor RLAIF touched) come from the v7 training run it continued.
+V7 = V6.parent / "krummholz-v7"
+MODELS_V7 = {
+    "atlantic-lite-4b-v7-GGUF": ("atlantic-lite-4b-v7", ["rlaif1/atlantic-lite-4b", "atlantic-lite-4b"]),
+}
+RELEASES = {"v6": (V6, MODELS), "v7": (V7, MODELS_V7)}
+FROM_EARLIER_RUN = {"LICENSE-base.txt", "mmproj-krummholz-atlantic-lite-4b-v7-f16.gguf"}
 FILE_ROW = re.compile(r"^\| `([^`]+)` \|", re.M)
 
 
@@ -34,13 +41,14 @@ def files_table(card):
     return FILE_ROW.findall(card.split("\n## Files\n", 1)[1].split("\n## ", 1)[0])
 
 
-def locate(name, folders):
+def locate(name, folders, root=None):
     """A file from the release folder; only the base license may come from the run a fix started from."""
+    root = V6 if root is None else root
     search = folders if name in FROM_EARLIER_RUN else folders[:1]
     for folder in search:
-        if (V6 / folder / name).is_file():
-            return V6 / folder / name
-    raise FileNotFoundError(f"{name} not in {', '.join(search)} under {V6}")
+        if (root / folder / name).is_file():
+            return root / folder / name
+    raise FileNotFoundError(f"{name} not in {', '.join(search)} under {root}")
 
 
 def sha256(path):
@@ -66,11 +74,11 @@ def recorded_sums(path):
     return sums
 
 
-def publish(api, repo, card_path, folders, public):
+def publish(api, repo, card_path, folders, public, root=None):
     from huggingface_hub.hf_api import RepoFile
 
     local = {"README.md": card_path}
-    local |= {name: locate(name, folders) for name in files_table(card_path.read_text(encoding="utf-8"))}
+    local |= {name: locate(name, folders, root) for name in files_table(card_path.read_text(encoding="utf-8"))}
     want = {name: (path.stat().st_size, sha256(path) if name.endswith(".gguf") else git_blob(path))
             for name, path in local.items()}
     sums = recorded_sums(local["SHA256SUMS-gguf"])
@@ -103,6 +111,7 @@ def publish(api, repo, card_path, folders, public):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--release", choices=sorted(RELEASES), default="v6")
     ap.add_argument("--owner", default="krummholz-ai")
     ap.add_argument("--private", action="store_true", help="leave every repo private")
     args = ap.parse_args()
@@ -116,16 +125,17 @@ def main():
         raise SystemExit(f"TOKEN_ACCOUNT the token belongs to {who['name']}, not {args.owner}")
     if role == "read":
         raise SystemExit("TOKEN_READ_ONLY the token cannot upload")
+    root, models = RELEASES[args.release]
     report = {}
-    for name, (card, folders) in MODELS.items():
+    for name, (card, folders) in models.items():
         repo = f"{args.owner}/{name}"
         try:
-            report[repo] = publish(api, repo, ROOT / "docs" / "model-cards" / f"{card}.md", folders, not args.private)
+            report[repo] = publish(api, repo, ROOT / "docs" / "model-cards" / f"{card}.md", folders, not args.private, root)
         except Exception as e:  # this repo stays private; the others still go up
             report[repo] = {"url": f"https://huggingface.co/{repo}", "ok": False, "public": False,
                             "problems": [f"{type(e).__name__}: {e}"]}
         print("REPO_OK" if report[repo]["ok"] else "REPO_FAIL", repo, *report[repo]["problems"], flush=True)
-        (V6 / "hf-publish.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        (root / "hf-publish.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     done = all(r["ok"] for r in report.values())
     print("PUBLISH_DONE" if done else "PUBLISH_INCOMPLETE", flush=True)
     return 0 if done else 1
