@@ -52,6 +52,11 @@ echo SMOKE_OK $JUDGE
 [ -s "$R/samples.jsonl" ] || $RL sample --model "$VM" --prompts "$V/gen/krummholz_prompts.jsonl" --hist $HIST --out "$R" \
   --general "$GENERAL" --hist-n "$HISTN" --k "$K" || { echo SAMPLE_FAIL; exit 1; }
 echo SAMPLE_OK
+# grades from another judge (an earlier run of this job) are set aside, with anything built from them
+if [ -s "$R/judged.jsonl" ] && ! head -1 "$R/judged.jsonl" | grep -qF "\"judge\": \"$JUDGE\""; then
+  ts=$(date +%s); mv "$R/judged.jsonl" "$R/judged.other-judge.$ts.jsonl"; rm -rf "$R/pairs" "$R/rlaif1-report.json" "$R/train"
+  echo "JUDGE_RESET other judge's grades moved aside"
+fi
 [ -s "$R/judged.jsonl" ] || $RL judge --out "$R" --constitution "$V/private/constitution.md" --model "$JUDGE" || { echo JUDGE_FAIL; exit 1; }
 echo JUDGE_OK
 [ -s "$R/pairs/rlaif1_pairs.train.jsonl" ] || $RL build --out "$R" --policy "v7-$NAME" || { echo BUILD_FAIL; exit 1; }
