@@ -17,19 +17,23 @@ Each release also updates the investor information: the investor results doc and
 Atlantic Lite v7 (November 9, 2026) adds one round of reinforcement learning from AI feedback to the v7 training
 run. Through the Krummholz runtime it answers 18 of 22 held-out history questions fully, against 15 before that
 round. About 13 percent of v7's supervised examples were math and code solutions written by DeepSeek-R1 and QwQ-32B;
-the card discloses this, and the next version trains without them. Atlantic 27B and Core 35B-A3B v7 are in their
-feedback round and get cards when they are released.
+the card discloses this, and the next version trains without them. Atlantic 27B v7 is in final testing and gets a card
+when it is released.
+
+**Core 35B-A3B is deprecated (November 9, 2026).** Its v7 feedback round did not improve it, while Atlantic's did.
+Acadia and Katahdin will be adapters on Atlantic 27B, which will ship in more GGUF sizes (Q3_K_M, IQ4_XS, Q6_K and
+Q8_0, beside Q4_K_M and Q5_K_M) for workstations and consumer graphics cards. There is no Core 35B-A3B v7.
 
 ## v6 (November 5, 2026)
 
 Krummholz AI's v6 models, released as a beta on November 5, 2026, for testing and feedback. Atlantic Lite v6.3 is
-superseded by v7; Atlantic 27B v6 and Core 35B-A3B v6.3 are current until their v7 releases.
+superseded by v7; Atlantic 27B v6 is current until its v7 release. Core 35B-A3B v6.3 is deprecated.
 
 | Model | Product | Base model (Apache 2.0) | Recommended file | Card |
 | --- | --- | --- | --- | --- |
 | Atlantic 27B v6 | General purpose, hosted and desktop | Qwen/Qwen3.8-27B | `krummholz-atlantic-27b-v6-Q4_K_M.gguf`, 16.5 GB | [atlantic-27b-v6.md](atlantic-27b-v6.md) |
 | Atlantic Lite 4B v6.3 | General purpose, phones and low-end hardware | Qwen/Qwen3.5-4B | `krummholz-atlantic-lite-4b-v6.3-Q4_K_M.gguf`, 2.7 GB | [atlantic-lite-4b-v6.3.md](atlantic-lite-4b-v6.3.md) |
-| Core 35B-A3B v6.3 | Shared core for Acadia and Katahdin (adapters not yet trained) | Qwen/Qwen3.6-35B-A3B | `krummholz-core-35b-a3b-v6.3-Q4_K_M.gguf`, 21.2 GB | [core-35b-a3b-v6.3.md](core-35b-a3b-v6.3.md) |
+| Core 35B-A3B v6.3 (deprecated) | Formerly the planned core for Acadia and Katahdin, which now build on Atlantic 27B | Qwen/Qwen3.6-35B-A3B | `krummholz-core-35b-a3b-v6.3-Q4_K_M.gguf`, 21.2 GB | [core-35b-a3b-v6.3.md](core-35b-a3b-v6.3.md) |
 
 Each model also has a Q5_K_M file and an `mmproj` vision projector; Atlantic Lite also has unquantized bf16
 weights.
