@@ -1,0 +1,55 @@
+{
+ "embedding_model": "BAAI/bge-small-en-v1.5",
+ "window_bytes": 500,
+ "request": {
+  "alpha": 0.5,
+  "threshold": -0.9032,
+  "aegis_validation_auroc": {
+   "head": 0.9213,
+   "hashed": 0.9015,
+   "both": 0.9326
+  },
+  "aegis_test_auroc": 0.9243,
+  "aegis_test_unsafe_stopped": 0.922,
+  "aegis_test_safe_stopped": 0.2846,
+  "own_comply_stopped_report_part": 0.0598,
+  "own_refuse_stopped_report_part": 0.7998,
+  "harmbench_stopped": {
+   "all": "250/300",
+   "chemical_biological": "54/56",
+   "cybercrime_intrusion": "52/67",
+   "harassment_bullying": "19/25",
+   "harmful": "13/22",
+   "illegal": "61/65",
+   "misinformation_disinformation": "51/65"
+  },
+  "harmbench_rules_or_judge": {
+   "all": "272/300",
+   "heldout": "144/159",
+   "dev": "128/141",
+   "rules_alone_heldout": "54/159",
+   "judge_alone_heldout": "135/159",
+   "heldout_by_category": {
+    "chemical_biological": "31/31",
+    "cybercrime_intrusion": "36/38",
+    "harassment_bullying": "11/11",
+    "harmful": "7/9",
+    "illegal": "31/33",
+    "misinformation_disinformation": "28/37"
+   }
+  }
+ },
+ "reply": {
+  "alpha": 0.5,
+  "threshold": 0.8028,
+  "train": 9431,
+  "aegis_validation_auroc": {
+   "head": 0.8838,
+   "hashed": 0.8212,
+   "both": 0.8883
+  },
+  "aegis_test_auroc": 0.9108,
+  "aegis_test_unsafe_stopped": 0.7284,
+  "aegis_test_safe_stopped": 0.0835
+ }
+}

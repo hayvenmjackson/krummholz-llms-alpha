@@ -1,0 +1,23 @@
+node_modules/
+dist/
+dist-tests/
+artifacts/
+src-tauri/target/
+src-tauri/gen/
+public/knowledge-store.json
+atlantic-design-preview.html
+*.gguf
+*.part
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+!.env.example
+
+# Keep binary judge dependencies at their pinned public Hugging Face release.
+!native/vendor/krummholz-harness/judge/models/
+native/vendor/krummholz-harness/judge/models/*.kzj
+native/vendor/krummholz-harness/judge/models/*.kze
+!native/vendor/krummholz-harness/judge/models/embed-report.json
+!native/vendor/krummholz-harness/judge/models/judge-report.json
