@@ -59,6 +59,7 @@ class ReviewCycle:
         if not 1 <= items_cap <= 500:
             raise ReviewError("invalid_items_cap")
         self.store, self.cap, self.accepted, self.closed = store, items_cap, 0, False
+        self._training_accepted = 0
         self.id = "cycle-" + uuid.uuid4().hex[:12]
         store.log("review_cycle_opened", id=self.id, cycle_of_day=len(opened) + 1)
 
@@ -72,10 +73,14 @@ class ReviewCycle:
             raise ReviewError("unknown_decision")
         if decision != "reject" and self.accepted >= self.cap:
             raise ReviewError("cycle_item_cap_reached")
-        c = self.store.dequeue(cid)
         if decision == "reject":
+            c = self.store.dequeue(cid)
             self.store.log("candidate_rejected", id=cid, kind=c["kind"])
             return None
+        # Keep the candidate until storage succeeds, including all edited-value validation.
+        c = next((row for row in self.store.queue() if row["id"] == cid), None)
+        if c is None:
+            raise StoreError("unknown_candidate")
         if decision == "edit":
             if not isinstance(edited, str) or not edited.strip():
                 raise ReviewError("edit_requires_new_text")
@@ -89,12 +94,16 @@ class ReviewCycle:
         else:
             ref = self.store.append_example("dpo", c["messages"], CANDIDATE_KINDS[c["kind"]], chosen=c["revised"],
                                             rejected=c["original"], approved_at=stamp)
+        self.store.dequeue(cid)
         self.accepted += 1
+        if c["kind"] != "fact":
+            self._training_accepted += 1
         self.store.log("candidate_accepted", id=cid, kind=c["kind"], stored_as=ref, cycle=self.id)
         return ref
 
     def close(self):
         """Ends the cycle. Returns True when there is something new to train on."""
         self.closed = True
-        self.store.log("review_cycle_closed", id=self.id, accepted=self.accepted, train_requested=self.accepted > 0)
-        return self.accepted > 0
+        train_requested = self._training_accepted > 0
+        self.store.log("review_cycle_closed", id=self.id, accepted=self.accepted, train_requested=train_requested)
+        return train_requested

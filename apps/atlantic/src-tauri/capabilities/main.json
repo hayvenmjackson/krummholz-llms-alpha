@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window",
+  "description": "Only basic window capabilities. Native services are not connected in the design preview.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

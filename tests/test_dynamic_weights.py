@@ -155,6 +155,79 @@ class StoreAndReviewTests(unittest.TestCase):
         self.assertTrue(self.store.verify_chain())
         self.assertNotIn("Species", self.store.ledger_path.read_text(encoding="utf-8"))
 
+    def test_invalid_edits_preserve_candidate(self):
+        cid = review.capture(self.store, "fact", actor="user", fact="Our woodlot is lot 14")
+        cycle = review.ReviewCycle(self.store)
+        original = cycle.pending()
+        for edited in (None, 7, "", " \t\n"):
+            with self.subTest(edited=edited):
+                with self.assertRaisesRegex(review.ReviewError, "edit_requires_new_text"):
+                    cycle.decide(cid, "edit", edited=edited)
+                self.assertEqual(cycle.pending(), original)
+                self.assertEqual(cycle.accepted, 0)
+                self.assertEqual(self.store.facts(), [])
+        cycle.decide(cid, "edit", edited="Our woodlot is lot 15")
+        self.assertEqual(cycle.pending(), [])
+        self.assertEqual([f["text"] for f in self.store.facts()], ["Our woodlot is lot 15"])
+
+    def test_invalid_fact_edit_preserves_candidate(self):
+        cid = review.capture(self.store, "fact", actor="user", fact="Our woodlot is lot 14")
+        cycle = review.ReviewCycle(self.store)
+        original = cycle.pending()
+        with self.assertRaisesRegex(StoreError, "invalid_fact_text"):
+            cycle.decide(cid, "edit", edited="x" * 4001)
+        self.assertEqual(cycle.pending(), original)
+        self.assertEqual(cycle.accepted, 0)
+        self.assertEqual(self.store.facts(), [])
+
+    def test_edit_reverting_correction_preserves_candidate(self):
+        msgs = [{"role": "user", "content": "Tally format?"}]
+        cid = review.capture(self.store, "correction", actor="user", messages=msgs,
+                             original="Wrong", revised="Right")
+        cycle = review.ReviewCycle(self.store)
+        original = cycle.pending()
+        with self.assertRaisesRegex(StoreError, "dpo_needs_distinct_chosen_and_rejected"):
+            cycle.decide(cid, "edit", edited="Wrong")
+        self.assertEqual(cycle.pending(), original)
+        self.assertEqual(cycle.accepted, 0)
+        self.assertEqual(self.store.examples(), [])
+
+    def test_facts_only_review_does_not_request_training(self):
+        cid = review.capture(self.store, "fact", actor="user", fact="Our woodlot is lot 14")
+        cycle = review.ReviewCycle(self.store)
+        cycle.decide(cid, "accept")
+        self.assertFalse(cycle.close())
+        self.assertEqual(cycle.accepted, 1)
+        self.assertEqual(self.store.examples(), [])
+        self.assertEqual(len(self.store.facts()), 1)
+        closed = self.store.ledger()[-1]
+        self.assertEqual(closed["event"], "review_cycle_closed")
+        self.assertEqual(closed["accepted"], 1)
+        self.assertFalse(closed["train_requested"])
+
+    def test_behavior_and_correction_reviews_request_training(self):
+        msgs = [{"role": "user", "content": "Tally format?"}]
+        for kind in ("behavior", "correction", "edit"):
+            with self.subTest(kind=kind):
+                fields = {"target": "Species, DBH, count"} if kind == "behavior" else {
+                    "original": "Wrong", "revised": "Right"}
+                cid = review.capture(self.store, kind, actor="user", messages=msgs, **fields)
+                cycle = review.ReviewCycle(self.store)
+                cycle.decide(cid, "accept")
+                self.assertTrue(cycle.close())
+                self.assertTrue(self.store.ledger()[-1]["train_requested"])
+        self.assertEqual([e["kind"] for e in self.store.examples()], ["sft", "dpo", "dpo"])
+        self.assertTrue(self.store.verify_chain())
+
+    def test_rejected_behavior_does_not_request_training(self):
+        cid = review.capture(self.store, "behavior", actor="user",
+                             messages=[{"role": "user", "content": "Tally format?"}], target="Species, DBH, count")
+        cycle = review.ReviewCycle(self.store)
+        cycle.decide(cid, "reject")
+        self.assertFalse(cycle.close())
+        self.assertEqual(self.store.examples(), [])
+        self.assertFalse(self.store.ledger()[-1]["train_requested"])
+
     def test_three_cycles_per_day(self):
         for _ in range(3):
             review.ReviewCycle(self.store).close()

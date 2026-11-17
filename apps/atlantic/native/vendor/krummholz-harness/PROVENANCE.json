@@ -1,0 +1,92 @@
+{
+  "repository": "https://huggingface.co/krummholz-ai/krummholz-harness",
+  "revision": "30f793a03d7ba5ca0f123f275171f04ac04aab4d",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "path": "LICENSE",
+      "size_bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "path": "README.md",
+      "size_bytes": 2926,
+      "sha256": "3c185d478cabbea6e6ec434fa61dcb4b3c3ab3038d0ceea402770ca56e0e9d4d"
+    },
+    {
+      "path": "safety_screen/safety_screen.hpp",
+      "size_bytes": 9171,
+      "sha256": "5d23db134d71781c2de12965439aa09a3608e0072981c4065f3e2f104aa518c3"
+    },
+    {
+      "path": "safety_screen/rules.tsv",
+      "size_bytes": 10963,
+      "sha256": "bee2e2b555fcff09c98f0608f31c92649fd236f961410e398d795cb47fbb3138"
+    },
+    {
+      "path": "safety_screen/README.md",
+      "size_bytes": 2286,
+      "sha256": "31c0760f0a019c7325463f5a14f09110df47cf311317f1633ae18b250164d64b"
+    },
+    {
+      "path": "safety_gate/safety_gate.hpp",
+      "size_bytes": 3879,
+      "sha256": "89560c309c7b378575b4285d9b7c14dc66533465fdcd3f2810eb7d225338adb7"
+    },
+    {
+      "path": "safety_gate/README.md",
+      "size_bytes": 1457,
+      "sha256": "70b2d838721ce0529b797e53e121d41e7dc189ea4e676ccea7f2ace8213aca87"
+    },
+    {
+      "path": "judge/judge.hpp",
+      "size_bytes": 15024,
+      "sha256": "eccb228bd98a1a445c367d760baaa14446bd7345c5665e585b133b08a6925757"
+    },
+    {
+      "path": "judge/README.md",
+      "size_bytes": 7938,
+      "sha256": "54c7e6e2de4d5b1de3fe5573f5c26590cf925c35328fb92e459032646ef8b3e4"
+    },
+    {
+      "path": "judge/models/request.kzj",
+      "size_bytes": 1048592,
+      "sha256": "f2bd68a1b351d86da0afa30632ff7032d092b7dffc7e36fe30cd5e5d10271bfc"
+    },
+    {
+      "path": "judge/models/reply.kzj",
+      "size_bytes": 1048592,
+      "sha256": "5278428c4b5a11816260e7372e7698739be57624ce6cbb776c7dc664a181c98b"
+    },
+    {
+      "path": "judge/models/request.kze",
+      "size_bytes": 197656,
+      "sha256": "fd5e93a9413044e76342cd7bf339dd68b252a5df824eedf541d504929d124311"
+    },
+    {
+      "path": "judge/models/reply.kze",
+      "size_bytes": 394264,
+      "sha256": "2ddc74f31d673dcc5e6455c04015d475f970e0569f74b9805e815f10b0718714"
+    },
+    {
+      "path": "judge/models/embed-report.json",
+      "size_bytes": 1340,
+      "sha256": "b466d32d4eda2137fb9417ec57bbff38c3dcb47596f4c78d0cd6b518f08f78e8"
+    },
+    {
+      "path": "judge/models/judge-report.json",
+      "size_bytes": 793,
+      "sha256": "72079276c9e5d89244a5aec3148ae0524116f56b30e4b43f7324c4ba418f9ef9"
+    },
+    {
+      "path": "reasoning_budget/reasoning_budget.hpp",
+      "size_bytes": 3372,
+      "sha256": "b3dcd6b7f9c2ed8363ae61279bedd5646c3b685cbacb14da9a0397097aecf374"
+    },
+    {
+      "path": "sampling/sampling.hpp",
+      "size_bytes": 1302,
+      "sha256": "3fd239f52bb7266af36b6cc35e300dd4da3712fc67c1133e310a06657007ef74"
+    }
+  ]
+}

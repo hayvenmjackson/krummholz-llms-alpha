@@ -1,0 +1,19 @@
+[package]
+name = "atlantic-app"
+version = "0.1.0"
+description = "Atlantic native application shell, integration preview"
+edition = "2021"
+
+[lib]
+name = "atlantic_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+
+# Generate and review Cargo.lock on a configured native builder before release.
+# The C++ host is tested independently, and is not linked to this shell yet.
