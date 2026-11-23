@@ -15,6 +15,20 @@ Limits, stated up front:
 - One run per device is a smoke measurement. Heat and speed vary with room temperature, charge state
   and background apps; write those down.
 
+## Fastest path: one command
+
+In Termux (or any Linux or macOS shell), from the unzipped kit folder:
+
+```sh
+bash tools/dw/phone_run.sh "Galaxy S26"
+```
+
+It installs the Termux packages, builds the pinned llama.cpp, downloads and checks the model,
+runs the speed test and the full canary, and copies `report.json` and `bench.txt` to Downloads.
+Run it again after any interruption; finished steps are skipped and the download resumes.
+`LIMIT=5 bash tools/dw/phone_run.sh "Galaxy S26"` does a 5-item check first. The manual steps
+below do the same thing one at a time.
+
 ## Android (Samsung first, then one other maker)
 
 Needs 8 GB of RAM or more, about 4 GB free storage, and Termux from F-Droid or GitHub (the Play Store
