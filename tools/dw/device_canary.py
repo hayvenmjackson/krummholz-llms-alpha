@@ -97,7 +97,9 @@ def chat(server, messages, max_tokens, timeout, post=None, thinking=False):
         return json.loads(r.read())
 
 
-def run(suite, server, max_tokens=384, timeout=600, limit=None, server_pid=None, post=None, log=print, thinking=False):
+def run(suite, server, max_tokens=384, timeout=600, limit=None, server_pid=None, post=None, log=print, thinking=False,
+        progress=None):
+    """progress: optional path; rows are rewritten there after every item so a crash keeps what finished."""
     qa_system = reference.load_spec()["qa_system"]
     rows, responses = [], {}
     items = suite["items"][:limit] if limit else suite["items"]
@@ -122,6 +124,10 @@ def run(suite, server, max_tokens=384, timeout=600, limit=None, server_pid=None,
         row["after"] = device_stats()
         row["server_peak_rss_mb"] = peak_rss_mb(server_pid)
         rows.append(row)
+        if progress:
+            tmp = Path(str(progress) + ".tmp")
+            tmp.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+            os.replace(tmp, progress)
         log(f"[{n}/{len(items)}] {item['id']} {row['status']} {row.get('seconds', '')}s")
     return rows, responses
 
@@ -162,7 +168,8 @@ def main(argv=None):
     suite = json.loads(Path(a.suite).read_text(encoding="utf-8"))
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    rows, responses = run(suite, a.server, a.max_tokens, limit=a.limit, server_pid=a.server_pid, thinking=a.thinking)
+    rows, responses = run(suite, a.server, a.max_tokens, limit=a.limit, server_pid=a.server_pid, thinking=a.thinking,
+                          progress=out / "rows.partial.json")
     report = {"label": a.label, "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
               "platform": {"system": platform.system(), "machine": platform.machine(), "release": platform.release(),
                            "android": os.path.isdir("/system/app")},

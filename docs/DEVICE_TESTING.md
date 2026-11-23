@@ -27,7 +27,8 @@ It installs the Termux packages, builds the pinned llama.cpp, downloads and chec
 runs the speed test and the full canary, and copies `report.json` and `bench.txt` to Downloads.
 Run it again after any interruption; finished steps are skipped and the download resumes.
 `LIMIT=5 bash tools/dw/phone_run.sh "Galaxy S26"` does a 5-item check first.
-To leave it running while you use the phone or close Termux, add `--background`
+For measurements, run it in the foreground with the screen on: on a Samsung phone a background run
+froze Termux (November 23, 2026). To leave it running while you use the phone or close Termux, add `--background`
 (`bash tools/dw/phone_run.sh --background "Galaxy S26"`) and follow it with `tail -f ~/phone_run.log`.
 Background runs are labelled as such: Android slows apps it considers in the background, so their
 speed is not comparable with a screen-on run. Set Termux's battery use to Unrestricted in Android
@@ -53,7 +54,7 @@ sha256sum krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf   # must match the SHA256 
 1. Speed only (about 2 minutes). Try 4 threads, then 6:
 
    ```sh
-   ~/llama.cpp/build/bin/llama-bench -m ~/models/krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf -p 512 -n 128 -t 4
+   ~/llama.cpp/build/bin/llama-bench -m ~/models/krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf -p 512 -n 128 -t 4 --repack 0
    ```
 
 2. Canary run. Unplug the charger so the battery reading means something, keep the screen on,
@@ -61,7 +62,7 @@ sha256sum krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf   # must match the SHA256 
 
    ```sh
    ~/llama.cpp/build/bin/llama-server -m ~/models/krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf \
-       -c 4096 -t 4 -np 1 --cache-ram 0 --port 8080 > ~/server.log 2>&1 &
+       -c 4096 -t 4 -np 1 --cache-ram 0 --no-repack --port 8080 > ~/server.log 2>&1 &
    SERVER_PID=$!
    git clone -b dynamic-weights-device-testing https://github.com/hayvenmjackson/krummholz-llms-alpha ~/alpha && cd ~/alpha
    python tools/dw/device_canary.py --label "Galaxy S26, Q4_K_M, 4 threads" --server-pid $SERVER_PID \
@@ -72,6 +73,8 @@ sha256sum krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf   # must match the SHA256 
 
    Keep `-np 1 --cache-ram 0`: llama-server's defaults (parallel slots and an 8 GB prompt cache)
    took peak memory to 13.5 GB in a test run; with these flags it was 5.6 GB, at the same speed.
+   `--no-repack` stops llama.cpp keeping a second, repacked copy of the weights: 3.0 GB, no slower
+   on the test machine. Without it, a Samsung phone froze mid-run (November 23, 2026).
    Wait until `server.log` shows the server listening before the first run. The smoke run checks
    the plumbing; the second is the measurement. Results are in `~/results/s26-q4km/report.json`.
 
@@ -95,7 +98,7 @@ curl.exe -LO https://huggingface.co/krummholz-ai/atlantic-lite-4b-v8.1-GGUF/reso
 $m = "$HOME\models\krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf"
 & $HOME\llama.cpp\build\bin\Release\llama-bench.exe -m $m -p 512 -n 128 -ngl 99
 $server = Start-Process -PassThru -NoNewWindow $HOME\llama.cpp\build\bin\Release\llama-server.exe `
-    -ArgumentList "-m `"$m`" -c 4096 -ngl 99 -np 1 --cache-ram 0 --port 8080" -RedirectStandardError $HOME\server.log
+    -ArgumentList "-m `"$m`" -c 4096 -ngl 99 -np 1 --cache-ram 0 --no-repack --port 8080" -RedirectStandardError $HOME\server.log
 git clone -b dynamic-weights-device-testing https://github.com/hayvenmjackson/krummholz-llms-alpha $HOME\alpha; cd $HOME\alpha
 python tools\dw\device_canary.py --label "Windows, RTX (model), Q4_K_M" --model-file $m --out $HOME\results\win-q4km
 Stop-Process -Id $server.Id

@@ -70,6 +70,21 @@ class DeviceCanaryTests(unittest.TestCase):
         self.assertEqual((s["hit_token_limit"], s["empty_replies"]), (2, 2))
         self.assertEqual(rows[0]["reasoning_chars"], 50)
 
+    def test_progress_is_saved_after_every_item(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d, "rows.partial.json")
+            counts = []
+            def post(body):
+                if path.exists():
+                    counts.append(len(json.loads(path.read_text())))
+                if len(counts) == 2:
+                    raise KeyboardInterrupt  # the phone dies mid-run
+                return {"choices": [{"message": {"content": "{}"}}]}
+            with self.assertRaises(KeyboardInterrupt):
+                dc.run(self.suite, "x", limit=5, post=post, log=lambda *_: None, progress=path)
+            self.assertEqual(counts, [1, 2])
+            self.assertEqual(len(json.loads(path.read_text())), 2)  # finished items survive the crash
+
     def test_missing_device_readings_are_null(self):
         with mock.patch.object(dc, "_read", return_value=None), mock.patch.object(dc.glob, "glob", return_value=[]):
             self.assertEqual(dc.device_stats(), {"mem_available_mb": None, "max_thermal_c": None, "battery_pct": None})

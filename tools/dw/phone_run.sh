@@ -68,12 +68,22 @@ if [ ! -f "$MODEL" ] || [ "$(sha "$MODEL")" != "$SHA" ]; then
 fi
 say "Model verified: $MODEL"
 
+if [ -r /proc/meminfo ]; then
+  avail=$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)
+  say "Free memory now: ${avail} MB (the server needs about 3,000 MB)"
+  if [ "$avail" -lt 3500 ]; then
+    echo "Too little free memory to run safely. Close other apps (or restart the phone) and run this again." >&2
+    exit 1
+  fi
+fi
+
 say "Speed test"
-"$BIN/llama-bench" -m "$MODEL" -p 512 -n 128 -t "$THREADS" | tee "$HOME/bench-$SLUG.txt"
+"$BIN/llama-bench" -m "$MODEL" -p 512 -n 128 -t "$THREADS" --repack 0 | tee "$HOME/bench-$SLUG.txt"
 
 say "Starting the model server"
 pkill -f "llama-server.*--port 8080" 2>/dev/null || true
-"$BIN/llama-server" -m "$MODEL" -c 4096 -t "$THREADS" -np 1 --cache-ram 0 --port 8080 > "$HOME/server.log" 2>&1 &
+# --no-repack: the default keeps a second, repacked copy of the weights (5.6 GB peak against 3.0 GB)
+"$BIN/llama-server" -m "$MODEL" -c 4096 -t "$THREADS" -np 1 --cache-ram 0 --no-repack --port 8080 > "$HOME/server.log" 2>&1 &
 SERVER_PID=$!
 trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
 for _ in $(seq 180); do
