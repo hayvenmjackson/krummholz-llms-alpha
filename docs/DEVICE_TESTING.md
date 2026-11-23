@@ -44,7 +44,7 @@ sha256sum krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf   # must match the SHA256 
    ~/llama.cpp/build/bin/llama-server -m ~/models/krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf \
        -c 4096 -t 4 --port 8080 > ~/server.log 2>&1 &
    SERVER_PID=$!
-   git clone -b dynamic-weights https://github.com/hayvenmjackson/krummholz-llms-alpha ~/alpha && cd ~/alpha
+   git clone -b dynamic-weights-device-testing https://github.com/hayvenmjackson/krummholz-llms-alpha ~/alpha && cd ~/alpha
    python tools/dw/device_canary.py --label "Galaxy S26, Q4_K_M, 4 threads" --server-pid $SERVER_PID \
        --model-file ~/models/krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf --limit 5 --out ~/results/smoke
    python tools/dw/device_canary.py --label "Galaxy S26, Q4_K_M, 4 threads" --server-pid $SERVER_PID \
@@ -60,11 +60,33 @@ sha256sum krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf   # must match the SHA256 
 4. Stop if the phone gets too hot to hold comfortably or the run is killed by the system; that is a
    result, write it down.
 
-## Desktop with an NVIDIA GPU, and Mac
+## Windows desktop with an NVIDIA GPU (PowerShell)
 
-Same commands without Termux. Build with `-DGGML_CUDA=ON` on NVIDIA (Metal is on by default on
-Apple silicon) and add `-ngl 99` to `llama-bench` and `llama-server` to use the GPU. Run once on
-`Q4_K_M` and once on `Q5_K_M`.
+Needs Git, Python 3.10 or later, CMake, Visual Studio Build Tools and the CUDA toolkit.
+
+```powershell
+git clone https://github.com/ggml-org/llama.cpp $HOME\llama.cpp; cd $HOME\llama.cpp; git checkout e574a17
+cmake -B build -DGGML_CUDA=ON -DLLAMA_CURL=OFF
+cmake --build build --config Release -j 8 --target llama-server llama-bench
+mkdir $HOME\models -Force; cd $HOME\models
+curl.exe -LO https://huggingface.co/krummholz-ai/atlantic-lite-4b-v8.1-GGUF/resolve/main/krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf
+(Get-FileHash .\krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf -Algorithm SHA256).Hash   # must match the SHA256 above
+$m = "$HOME\models\krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf"
+& $HOME\llama.cpp\build\bin\Release\llama-bench.exe -m $m -p 512 -n 128 -ngl 99
+$server = Start-Process -PassThru -NoNewWindow $HOME\llama.cpp\build\bin\Release\llama-server.exe `
+    -ArgumentList "-m `"$m`" -c 4096 -ngl 99 --port 8080" -RedirectStandardError $HOME\server.log
+git clone -b dynamic-weights-device-testing https://github.com/hayvenmjackson/krummholz-llms-alpha $HOME\alpha; cd $HOME\alpha
+python tools\dw\device_canary.py --label "Windows, RTX (model), Q4_K_M" --model-file $m --out $HOME\results\win-q4km
+Stop-Process -Id $server.Id
+```
+
+Windows does not expose temperature or battery files, so those readings are null; note GPU
+temperature from Task Manager by hand. Repeat with the Q5_K_M file.
+
+## Mac (Apple silicon)
+
+Same as Android without Termux: Metal is on by default, so build plainly and add `-ngl 99` to
+`llama-bench` and `llama-server`. Run once on `Q4_K_M` and once on `Q5_K_M`.
 
 ## Results table
 
