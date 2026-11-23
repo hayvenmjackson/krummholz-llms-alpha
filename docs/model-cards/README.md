@@ -13,10 +13,10 @@ new model work.
 ## Current releases
 
 - [Atlantic v8 model card](https://krummholz.ai/llms/model-cards/atlantic-v8/)
-- [Atlantic Lite v8.1 model card](https://krummholz.ai/llms/model-cards/atlantic-lite-v8-1/)
+- [Atlantic Lite v8.1 model card](atlantic-lite-4b-v8.1.md) · [Hugging Face](https://huggingface.co/krummholz-ai/atlantic-lite-4b-v8.1-GGUF) · [Website](https://krummholz.ai/llms/model-cards/atlantic-lite-v8-1/)
 
 On November 23, 2026, Atlantic Lite v8.1 Q4_K_M completed a 102-item test on a Samsung Galaxy S26.
-See the [device test record](https://github.com/hayvenmjackson/krummholz-llms-alpha/blob/dc132706116d5b16b20f08ef8627873f43408c56/evaluation/device/README.md).
+See the [phone testing results](atlantic-lite-4b-v8.1.md#phone-testing) and the [device test record](https://github.com/hayvenmjackson/krummholz-llms-alpha/blob/dc132706116d5b16b20f08ef8627873f43408c56/evaluation/device/README.md).
 
 ## v7 (November 9, 2026)
 
