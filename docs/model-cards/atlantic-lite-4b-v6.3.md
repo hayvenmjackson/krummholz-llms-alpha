@@ -66,8 +66,8 @@ version 6.3, a beta pre-release published November 5, 2026, for testing and feed
 | `SHA256SUMS-gguf` | | SHA-256 checksums of the Q4_K_M and Q5_K_M files |
 | `LICENSE-base.txt` | | The base model's license |
 
-Plan on the file size plus about 1 GB of memory for the context. Krummholz has not yet run its phone acceptance
-tests on v6.
+Plan on the file size plus about 1 GB of memory for the context. Krummholz had yet to run phone acceptance
+tests on v6 when this card was published. For the latest model, see the [Atlantic Lite v8.1 device test](README.md#current-releases).
 
 ## How to run
 

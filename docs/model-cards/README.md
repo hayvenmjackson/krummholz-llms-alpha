@@ -1,15 +1,22 @@
 # Krummholz model cards
 
-Every Krummholz release ships with a model card in this folder and on its Hugging Face repository, in the layout
-of the v6 cards: At a glance, Intended use, Out of scope, Files, How to run, the runtime's guards or gates, Training,
-Evaluation, Limitations, License and attribution, Contact. A card may add sections (for example, what changed from
-the last version). `tests/test_model_cards.py` checks every card that `tools/vl/publish_hf.py` publishes.
+The historical cards in this folder follow the v6 layout: At a glance, Intended use, Out of scope, Files,
+How to run, the runtime's guards or gates, Training, Evaluation, Limitations, License and attribution, Contact.
+A card may add sections, such as what changed from the last version. `tests/test_model_cards.py` checks every card that `tools/vl/publish_hf.py` publishes.
 
 Each release also updates the investor information: the investor results doc and its website twin
 (`/investors/` in the website repository), with the release's results, cost and any disclosure from its card.
 
 The [current Krummholz model constitution](https://krummholz.ai/llms/constitution/) sets the priorities for
-new model work. The cards below document earlier releases.
+new model work.
+
+## Current releases
+
+- [Atlantic v8 model card](https://krummholz.ai/llms/model-cards/atlantic-v8/)
+- [Atlantic Lite v8.1 model card](https://krummholz.ai/llms/model-cards/atlantic-lite-v8-1/)
+
+On November 23, 2026, Atlantic Lite v8.1 Q4_K_M completed a 102-item test on a Samsung Galaxy S26.
+See the [device test record](https://github.com/hayvenmjackson/krummholz-llms-alpha/blob/dc132706116d5b16b20f08ef8627873f43408c56/evaluation/device/README.md).
 
 ## v7 (November 9, 2026)
 

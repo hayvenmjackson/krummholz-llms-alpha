@@ -3,6 +3,8 @@
 Date: November 8, 2026. Draft for Hayven's review. No GPU time is spent on training until Hayven approves
 this plan and sets the budget.
 
+November 23, 2026 update: See the [Atlantic Lite v8.1 device test](../README.md#atlantic-lite-device-test).
+
 Sources: the November 3 decision to keep v6 on accuracy and make dynamic weights v7 (run-plan-v6.md, open
 question 2), ADR-004 (signed core plus product adapters), the v6 results and the "What's next" list in the
 v6 beta release post (November 4).

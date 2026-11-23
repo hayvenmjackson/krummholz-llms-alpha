@@ -8,8 +8,11 @@ offerings of Krummholz AI LLC.
 Krummholz AI LLC is a Maine limited liability company. Maine approved its
 formation on October 29, 2026.
 
-Android source builds successfully. Model selection and quality
-evaluation are underway before a downloadable alpha is released.
+## Atlantic Lite device test
+
+On November 23, 2026, Atlantic Lite v8.1 Q4_K_M completed a 102-item test on a Samsung Galaxy S26.
+The [device test record](https://github.com/hayvenmjackson/krummholz-llms-alpha/blob/dc132706116d5b16b20f08ef8627873f43408c56/evaluation/device/README.md)
+lists the setup and results.
 
 ## Android builds
 
@@ -19,10 +22,9 @@ The native Android application compiles, and its unit and lint checks pass in
 not approve any model. A signed APK will be attached to GitHub Releases only after
 model, installation and runtime validation, with its checksum and testing status.
 
-## Current construction milestone
+## Early inference harness
 
-Status: a local inference/evaluation harness around unchanged upstream model weights.
-This is not a Krummholz-trained model, a phone benchmark, or a production service.
+This milestone used a local inference and evaluation harness around unchanged upstream model weights.
 Diagnostic inference uses hosted CI and fictional inputs. No client data,
 live external-tool execution or separately purchased compute is used here.
 
@@ -52,7 +54,7 @@ The original 24 authored fictional cases are small plumbing checks. A separate
 it stays out of training. Neither set is a client-ready synthetic dataset or proof
 of production reliability. The [training direction](docs/ADR-002-evidence-seeking-training.md)
 prioritizes evidence seeking, grounded tool use and documented public-domain text.
-No Krummholz-specialized weights have been trained yet.
+At this milestone, Krummholz had yet to train its own weights.
 
 The first [public-domain text intake](docs/public-domain-pilot-audit.md) acquired
 six CC0 PDFs and retained 30 reviewed passages (2,781 words) from five. Train,

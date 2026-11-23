@@ -48,4 +48,4 @@ Inference runs on the phone after setup. The app has no network permission, tele
 | **Load saved model** appears | Tap it to verify and load the model already imported. |
 | The source is too long, the answer is incomplete, or the time limit is reached | Try a shorter passage and one focused question. Each operation has a three-minute limit. Keep the app open while it works. |
 
-S26 performance and installation testing are still pending.
+This alpha APK still needs installation and performance tests. The [Atlantic Lite v8.1 device test](../README.md#atlantic-lite-device-test) used llama.cpp separately.
