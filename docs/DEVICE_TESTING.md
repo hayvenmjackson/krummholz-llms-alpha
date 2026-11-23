@@ -42,7 +42,7 @@ sha256sum krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf   # must match the SHA256 
 
    ```sh
    ~/llama.cpp/build/bin/llama-server -m ~/models/krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf \
-       -c 4096 -t 4 --port 8080 > ~/server.log 2>&1 &
+       -c 4096 -t 4 -np 1 --cache-ram 0 --port 8080 > ~/server.log 2>&1 &
    SERVER_PID=$!
    git clone -b dynamic-weights-device-testing https://github.com/hayvenmjackson/krummholz-llms-alpha ~/alpha && cd ~/alpha
    python tools/dw/device_canary.py --label "Galaxy S26, Q4_K_M, 4 threads" --server-pid $SERVER_PID \
@@ -51,6 +51,8 @@ sha256sum krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf   # must match the SHA256 
        --model-file ~/models/krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf --out ~/results/s26-q4km
    ```
 
+   Keep `-np 1 --cache-ram 0`: llama-server's defaults (parallel slots and an 8 GB prompt cache)
+   took peak memory to 13.5 GB in a test run; with these flags it was 5.6 GB, at the same speed.
    Wait until `server.log` shows the server listening before the first run. The smoke run checks
    the plumbing; the second is the measurement. Results are in `~/results/s26-q4km/report.json`.
 
@@ -74,7 +76,7 @@ curl.exe -LO https://huggingface.co/krummholz-ai/atlantic-lite-4b-v8.1-GGUF/reso
 $m = "$HOME\models\krummholz-atlantic-lite-4b-v8.1-Q4_K_M.gguf"
 & $HOME\llama.cpp\build\bin\Release\llama-bench.exe -m $m -p 512 -n 128 -ngl 99
 $server = Start-Process -PassThru -NoNewWindow $HOME\llama.cpp\build\bin\Release\llama-server.exe `
-    -ArgumentList "-m `"$m`" -c 4096 -ngl 99 --port 8080" -RedirectStandardError $HOME\server.log
+    -ArgumentList "-m `"$m`" -c 4096 -ngl 99 -np 1 --cache-ram 0 --port 8080" -RedirectStandardError $HOME\server.log
 git clone -b dynamic-weights-device-testing https://github.com/hayvenmjackson/krummholz-llms-alpha $HOME\alpha; cd $HOME\alpha
 python tools\dw\device_canary.py --label "Windows, RTX (model), Q4_K_M" --model-file $m --out $HOME\results\win-q4km
 Stop-Process -Id $server.Id
