@@ -87,7 +87,16 @@ class DeviceCanaryTests(unittest.TestCase):
 
     def test_missing_device_readings_are_null(self):
         with mock.patch.object(dc, "_read", return_value=None), mock.patch.object(dc.glob, "glob", return_value=[]):
-            self.assertEqual(dc.device_stats(), {"mem_available_mb": None, "max_thermal_c": None, "battery_pct": None})
+            self.assertEqual(dc.device_stats(), {"mem_available_mb": None, "max_thermal_c": None, "max_thermal_zone": None,
+                                                 "battery_pct": None})
+
+    def test_hottest_zone_is_named(self):
+        files = {"/z/thermal_zone0/temp": "45000", "/z/thermal_zone0/type": "battery",
+                 "/z/thermal_zone1/temp": "88000", "/z/thermal_zone1/type": "cpu-1-0"}
+        with mock.patch.object(dc, "_read", side_effect=lambda p: files.get(p)), \
+             mock.patch.object(dc.glob, "glob", side_effect=lambda pat: [k for k in files if k.endswith("/temp")] if "thermal" in pat else []):
+            s = dc.device_stats()
+        self.assertEqual((s["max_thermal_c"], s["max_thermal_zone"]), (88.0, "cpu-1-0"))
 
     def test_main_writes_report_with_file_hash(self):
         with tempfile.TemporaryDirectory() as d:

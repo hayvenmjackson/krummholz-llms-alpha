@@ -50,7 +50,7 @@ def _read(path):
 
 def device_stats():
     """Best effort. Android often hides battery and thermal files from apps; null means not readable."""
-    stats = {"mem_available_mb": None, "max_thermal_c": None, "battery_pct": None}
+    stats = {"mem_available_mb": None, "max_thermal_c": None, "max_thermal_zone": None, "battery_pct": None}
     meminfo = _read("/proc/meminfo")
     if meminfo:
         m = re.search(r"MemAvailable:\s+(\d+)", meminfo)
@@ -61,8 +61,10 @@ def device_stats():
         if v and v.lstrip("-").isdigit():
             c = int(v) / (1000 if abs(int(v)) > 1000 else 1)
             if 0 < c < 150:
-                temps.append(c)
-    stats["max_thermal_c"] = round(max(temps), 1) if temps else None
+                temps.append((c, _read(zone[: -len("temp")] + "type")))
+    if temps:
+        hottest = max(temps, key=lambda t: t[0])
+        stats["max_thermal_c"], stats["max_thermal_zone"] = round(hottest[0], 1), hottest[1]
     for name in ("battery", "BAT0", "BAT1"):
         v = _read(f"/sys/class/power_supply/{name}/capacity")
         if v and v.isdigit():
@@ -136,7 +138,8 @@ def summarize(rows):
     done = [r for r in rows if r["status"] == "completed"]
     speeds = [r["timings"]["predicted_per_second"] for r in done if (r.get("timings") or {}).get("predicted_per_second")]
     prompt = [r["timings"]["prompt_per_second"] for r in done if (r.get("timings") or {}).get("prompt_per_second")]
-    temps = [s["max_thermal_c"] for r in rows for s in (r["before"], r["after"]) if s["max_thermal_c"] is not None]
+    temps = [(s["max_thermal_c"], s.get("max_thermal_zone")) for r in rows for s in (r["before"], r["after"])
+             if s["max_thermal_c"] is not None]
     batt = [s["battery_pct"] for r in rows for s in (r["before"], r["after"]) if s["battery_pct"] is not None]
     mem = [r["after"]["mem_available_mb"] for r in rows if r["after"]["mem_available_mb"] is not None]
     med = lambda xs: round(sorted(xs)[len(xs) // 2], 2) if xs else None
@@ -147,7 +150,8 @@ def summarize(rows):
             "skipped_needs_vision": sum(r["status"] == "skipped_needs_vision" for r in rows),
             "total_seconds": round(sum(r.get("seconds", 0) for r in rows), 1),
             "median_generate_tokens_per_s": med(speeds), "median_prompt_tokens_per_s": med(prompt),
-            "max_thermal_c": max(temps) if temps else None,
+            "max_thermal_c": max(temps)[0] if temps else None,
+            "max_thermal_zone": max(temps)[1] if temps else None,
             "battery_drop_pct": batt[0] - batt[-1] if len(batt) > 1 else None,
             "min_mem_available_mb": min(mem) if mem else None,
             "server_peak_rss_mb": max((r["server_peak_rss_mb"] for r in rows if r["server_peak_rss_mb"]), default=None)}
