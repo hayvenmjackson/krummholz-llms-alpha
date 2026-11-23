@@ -8,7 +8,10 @@ the last version). `tests/test_model_cards.py` checks every card that `tools/vl/
 Each release also updates the investor information: the investor results doc and its website twin
 (`/investors/` in the website repository), with the release's results, cost and any disclosure from its card.
 
-## Current release: v7
+The [current Krummholz model constitution](https://krummholz.ai/llms/constitution/) sets the priorities for
+new model work. The cards below document earlier releases.
+
+## v7 (November 9, 2026)
 
 | Model | Product | Base model (Apache 2.0) | Recommended file | Card |
 | --- | --- | --- | --- | --- |
