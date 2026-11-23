@@ -59,6 +59,17 @@ class DeviceCanaryTests(unittest.TestCase):
         self.assertEqual(s["median_generate_tokens_per_s"], 7.5)
         self.assertEqual(s["completed"] + s["skipped_needs_vision"], len(self.suite["items"]))
 
+    def test_thinking_is_off_by_default_and_truncation_is_counted(self):
+        sent = []
+        def post(body):
+            sent.append(body)
+            return {"choices": [{"message": {"content": "", "reasoning_content": "x" * 50}, "finish_reason": "length"}]}
+        rows, _ = dc.run(self.suite, "x", limit=2, post=post, log=lambda *_: None)
+        self.assertTrue(all(b["chat_template_kwargs"]["enable_thinking"] is False for b in sent))
+        s = dc.summarize(rows)
+        self.assertEqual((s["hit_token_limit"], s["empty_replies"]), (2, 2))
+        self.assertEqual(rows[0]["reasoning_chars"], 50)
+
     def test_missing_device_readings_are_null(self):
         with mock.patch.object(dc, "_read", return_value=None), mock.patch.object(dc.glob, "glob", return_value=[]):
             self.assertEqual(dc.device_stats(), {"mem_available_mb": None, "max_thermal_c": None, "battery_pct": None})
@@ -66,12 +77,12 @@ class DeviceCanaryTests(unittest.TestCase):
     def test_main_writes_report_with_file_hash(self):
         with tempfile.TemporaryDirectory() as d:
             model = Path(d, "m.gguf"); model.write_bytes(b"gguf")
-            with mock.patch.object(dc, "chat", side_effect=lambda s, m, n, t, p=None: fake_server(lambda u: "{}")({"messages": m})):
+            with mock.patch.object(dc, "chat", side_effect=lambda s, m, *rest: fake_server(lambda u: "{}")({"messages": m})):
                 dc.main(["--label", "test", "--model-file", str(model), "--out", d, "--limit", "2"])
             report = json.loads(Path(d, "report.json").read_text())
             self.assertEqual(report["model_file"]["sha256"], dc.sha256_file(model))
             self.assertIsNone(report["metrics"])  # a partial run is never scored as a gate result
-            self.assertEqual(report["summary"]["items"], 2)
+            self.assertEqual((report["summary"]["items"], report["summary"]["completed"]), (2, 2))
 
 
 if __name__ == "__main__":

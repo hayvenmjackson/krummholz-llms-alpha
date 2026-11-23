@@ -85,8 +85,10 @@ def sha256_file(path):
     return h.hexdigest()
 
 
-def chat(server, messages, max_tokens, timeout, post=None):
-    body = {"messages": messages, "temperature": 0, "seed": 42, "max_tokens": max_tokens, "stream": False}
+def chat(server, messages, max_tokens, timeout, post=None, thinking=False):
+    # Thinking off matches tools/training/eval_gguf.py; with it on, the 4B can spend the whole budget thinking
+    body = {"messages": messages, "temperature": 0, "seed": 42, "max_tokens": max_tokens, "stream": False,
+            "chat_template_kwargs": {"enable_thinking": thinking}}
     if post:
         return post(body)
     req = urllib.request.Request(server.rstrip("/") + "/v1/chat/completions", json.dumps(body).encode(),
@@ -95,7 +97,7 @@ def chat(server, messages, max_tokens, timeout, post=None):
         return json.loads(r.read())
 
 
-def run(suite, server, max_tokens=384, timeout=600, limit=None, server_pid=None, post=None, log=print):
+def run(suite, server, max_tokens=384, timeout=600, limit=None, server_pid=None, post=None, log=print, thinking=False):
     qa_system = reference.load_spec()["qa_system"]
     rows, responses = [], {}
     items = suite["items"][:limit] if limit else suite["items"]
@@ -107,9 +109,12 @@ def run(suite, server, max_tokens=384, timeout=600, limit=None, server_pid=None,
         else:
             started = time.monotonic()
             try:
-                out = chat(server, msgs, max_tokens, timeout, post)
-                raw = out["choices"][0]["message"].get("content") or ""
-                row.update(status="completed", raw=raw, usage=out.get("usage"), timings=out.get("timings"))
+                out = chat(server, msgs, max_tokens, timeout, post, thinking)
+                choice = out["choices"][0]
+                raw = choice["message"].get("content") or ""
+                row.update(status="completed", raw=raw, finish_reason=choice.get("finish_reason"),
+                           reasoning_chars=len(choice["message"].get("reasoning_content") or ""),
+                           usage=out.get("usage"), timings=out.get("timings"))
                 responses[item["id"]] = clean(raw)
             except Exception as e:  # recorded, and scored as a failure by canary.score
                 row.update(status="error", error=f"{type(e).__name__}: {e}")
@@ -131,6 +136,8 @@ def summarize(rows):
     med = lambda xs: round(sorted(xs)[len(xs) // 2], 2) if xs else None
     return {"items": len(rows), "completed": len(done),
             "errors": sum(r["status"] == "error" for r in rows),
+            "hit_token_limit": sum(r.get("finish_reason") == "length" for r in done),
+            "empty_replies": sum(not r["raw"].strip() for r in done),
             "skipped_needs_vision": sum(r["status"] == "skipped_needs_vision" for r in rows),
             "total_seconds": round(sum(r.get("seconds", 0) for r in rows), 1),
             "median_generate_tokens_per_s": med(speeds), "median_prompt_tokens_per_s": med(prompt),
@@ -150,16 +157,17 @@ def main(argv=None):
     ap.add_argument("--out", required=True)
     ap.add_argument("--max-tokens", type=int, default=384)
     ap.add_argument("--limit", type=int, help="first N items only, for a quick smoke run")
+    ap.add_argument("--thinking", action="store_true", help="allow hidden reasoning (off by default, as in eval_gguf.py)")
     a = ap.parse_args(argv)
     suite = json.loads(Path(a.suite).read_text(encoding="utf-8"))
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    rows, responses = run(suite, a.server, a.max_tokens, limit=a.limit, server_pid=a.server_pid)
+    rows, responses = run(suite, a.server, a.max_tokens, limit=a.limit, server_pid=a.server_pid, thinking=a.thinking)
     report = {"label": a.label, "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
               "platform": {"system": platform.system(), "machine": platform.machine(), "release": platform.release(),
                            "android": os.path.isdir("/system/app")},
               "suite": {"version": suite.get("version"), "sha256": suite.get("sha256"), "compact": suite.get("compact"),
-                        "limit": a.limit},
+                        "limit": a.limit, "thinking": a.thinking, "max_tokens": a.max_tokens},
               "model_file": {"name": Path(a.model_file).name, "sha256": sha256_file(a.model_file)} if a.model_file else None,
               "summary": summarize(rows),
               "metrics": None if a.limit else canary.score(suite, responses),
