@@ -26,7 +26,12 @@ bash tools/dw/phone_run.sh "Galaxy S26"
 It installs the Termux packages, builds the pinned llama.cpp, downloads and checks the model,
 runs the speed test and the full canary, and copies `report.json` and `bench.txt` to Downloads.
 Run it again after any interruption; finished steps are skipped and the download resumes.
-`LIMIT=5 bash tools/dw/phone_run.sh "Galaxy S26"` does a 5-item check first. The manual steps
+`LIMIT=5 bash tools/dw/phone_run.sh "Galaxy S26"` does a 5-item check first.
+To leave it running while you use the phone or close Termux, add `--background`
+(`bash tools/dw/phone_run.sh --background "Galaxy S26"`) and follow it with `tail -f ~/phone_run.log`.
+Background runs are labelled as such: Android slows apps it considers in the background, so their
+speed is not comparable with a screen-on run. Set Termux's battery use to Unrestricted in Android
+settings, or the system may stop the run. The manual steps
 below do the same thing one at a time.
 
 ## Android (Samsung first, then one other maker)

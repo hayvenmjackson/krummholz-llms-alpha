@@ -5,7 +5,25 @@
 # Works in Termux on Android and in any Linux or macOS shell. Override paths with LLAMA_DIR, MODEL_DIR.
 set -euo pipefail
 
+# Background mode: bash tools/dw/phone_run.sh --background "Galaxy S26"
+# Asks for storage access and takes the wake lock now (neither can prompt later), then keeps running
+# after you leave Termux or close its window. Follow it with: tail -f ~/phone_run.log
+if [ "${1:-}" = "--background" ]; then
+  shift
+  : "${1:?give the device name, for example: bash tools/dw/phone_run.sh --background \"Galaxy S26\"}"
+  if [ -d /data/data/com.termux ]; then
+    command -v termux-wake-lock >/dev/null && termux-wake-lock || true
+    [ -d "$HOME/storage/downloads" ] || termux-setup-storage || true
+  fi
+  RUN_MODE=background nohup bash "$0" "$@" > "$HOME/phone_run.log" 2>&1 < /dev/null &
+  echo "Running in the background (process $!)."
+  echo "Watch progress:  tail -f ~/phone_run.log    (Ctrl+C stops watching, not the test)"
+  echo "Stop the test:   pkill -f phone_run.sh; pkill -f llama-server"
+  exit 0
+fi
+
 LABEL="${1:?give the device name, for example: bash tools/dw/phone_run.sh \"Galaxy S26\"}"
+[ "${RUN_MODE:-}" = background ] && LABEL="$LABEL, background"
 THREADS="${THREADS:-4}"
 LIMIT="${LIMIT:-}"                      # LIMIT=5 for a quick check
 KIT="$(cd "$(dirname "$0")/../.." && pwd)"
