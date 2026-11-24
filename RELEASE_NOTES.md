@@ -1,5 +1,9 @@
 # Krummholz LLMs [ALPHA] — development notes
 
+## November 24, 2026 | Atlantic 27B v8.2 beta
+
+Our versioned flagship beta includes two GGUF sizes, the vision projector, the released safety harness and the paired field-record comparison. [Release notes](releases/atlantic-27b-v8.2/RELEASE.md)
+
 ## October 26, 2026 — building, testing, and raising the bar
 
 The code is public, GitHub pushes are working, and the Android app builds. That's

@@ -1,0 +1,161 @@
+{
+  "release": "Atlantic 27B v8.2 beta",
+  "scope": "32 original paired field records, 64 public answers per arm, native thinking, 512-token limit, greedy decoding. Parent/child labels denote v8 and v8.2 respectively.",
+  "training": {
+    "generations": 32,
+    "population": 16,
+    "training_pairs": 256,
+    "training_generations_sampled": 8192,
+    "valid_public_completions": 8172,
+    "text_parameters_perturbed": 26895998464,
+    "sigma": 0.001,
+    "step": 0.0003,
+    "vision_parameters_perturbed": 0
+  },
+  "fixture_sha256": "9e8cc32f5dd3ddd0663060228edbec1cacfbb1a42ffd98d0c225309e0ec87ec0",
+  "native_bf16": {
+    "unique_records": 32,
+    "questions": 64,
+    "source_blinded_model_based_review": {
+      "parent": {
+        "supported_answer": 30,
+        "justified_abstention": 21,
+        "unsupported_assertion": 12,
+        "needs_review": 1
+      },
+      "child": {
+        "supported_answer": 30,
+        "justified_abstention": 23,
+        "unsupported_assertion": 9,
+        "unnecessary_abstention": 1,
+        "needs_review": 1
+      }
+    },
+    "paired_review": {
+      "records": 32,
+      "both_halves_correct": {
+        "parent": 20,
+        "child": 21
+      },
+      "record_changes_in_number_correct": {
+        "-1": 1,
+        "0": 28,
+        "1": 3
+      },
+      "accuracy_delta_percentage_points": 3.125,
+      "paired_two_sided_exact_p": 0.625
+    },
+    "strict_raw_correct": {
+      "v8": 18,
+      "v8.2": 21
+    },
+    "safety_gate": {
+      "routes_v8": {
+        "allow": 60,
+        "request-judge": 4
+      },
+      "routes_v8.2": {
+        "allow": 60,
+        "request-judge": 4
+      },
+      "blinded_correct_delivered": {
+        "v8": 48,
+        "v8.2": 50
+      },
+      "unsupported_delivered": {
+        "v8": 11,
+        "v8.2": 8
+      }
+    }
+  },
+  "downloadable_q4_k_m": {
+    "unique_records": 32,
+    "questions": 64,
+    "source_blinded_model_based_review": {
+      "parent": {
+        "justified_abstention": 23,
+        "supported_answer": 30,
+        "unsupported_assertion": 9,
+        "unnecessary_abstention": 1,
+        "needs_review": 1
+      },
+      "child": {
+        "justified_abstention": 24,
+        "supported_answer": 30,
+        "unsupported_assertion": 9,
+        "needs_review": 1
+      }
+    },
+    "paired_review": {
+      "records": 32,
+      "both_halves_correct": {
+        "parent": 22,
+        "child": 23
+      },
+      "record_changes_in_number_correct": {
+        "-1": 1,
+        "0": 29,
+        "1": 2
+      },
+      "accuracy_delta_percentage_points": 1.5625,
+      "paired_two_sided_exact_p": 1.0
+    },
+    "strict_raw_correct": {
+      "v8": 16,
+      "v8.2": 18
+    },
+    "safety_gate": {
+      "routes_v8": {
+        "allow": 60,
+        "request-judge": 4
+      },
+      "routes_v8.2": {
+        "allow": 60,
+        "request-judge": 4
+      },
+      "blinded_correct_delivered": {
+        "v8": 50,
+        "v8.2": 51
+      },
+      "unsupported_delivered": {
+        "v8": 8,
+        "v8.2": 8
+      }
+    }
+  },
+  "release_harness_revision": "30f793a03d7ba5ca0f123f275171f04ac04aab4d",
+  "quantizer_and_runtime": "ggml-org/llama.cpp@e574a17b062be51b98e239ccd3d3743e3d902333",
+  "q4_production_sha256": "56545e13dbc13182174185d1c7cea0cfe6fcfdd4c35d44f8d625a6cd4fa8befe",
+  "q4_candidate_sha256": "a499e77a38866f7de19176f884df88d68316025dac66fbba81b3482b48dea28a",
+  "q4_identical_rendered_prompts": true,
+  "candidate_download_utility_and_vision": {
+    "q4": {
+      "name": "v8.2-Q4_K_M",
+      "weight_sha256": "a499e77a38866f7de19176f884df88d68316025dac66fbba81b3482b48dea28a",
+      "projector_sha256": "fb8074595eeebe85f0a5578d92d7aeed2ee24986de912991e77c9412e103d61c",
+      "server_sha256": "92a41990824506e6954097b2591feb65f84b9e6d145937f2b7c51d6440209659",
+      "fixture_sha256": "f45c16eba66f162f6f5fbf413b9e91640e1293d0b6d6167d884e6aa4760e1828",
+      "utility_exact": 23,
+      "image_exact": 4,
+      "visible": 28,
+      "utility_n": 24,
+      "utility_substantively_correct": 24,
+      "image_n": 4,
+      "all_n": 28
+    },
+    "q5": {
+      "name": "v8.2-Q5_K_M",
+      "weight_sha256": "4e084dea1bd898f55d3a1e14ced564930267edd66b1a68e0c8fe051acb99f1eb",
+      "projector_sha256": "fb8074595eeebe85f0a5578d92d7aeed2ee24986de912991e77c9412e103d61c",
+      "server_sha256": "92a41990824506e6954097b2591feb65f84b9e6d145937f2b7c51d6440209659",
+      "fixture_sha256": "f45c16eba66f162f6f5fbf413b9e91640e1293d0b6d6167d884e6aa4760e1828",
+      "utility_exact": 23,
+      "image_exact": 4,
+      "visible": 28,
+      "utility_n": 24,
+      "utility_substantively_correct": 24,
+      "image_n": 4,
+      "all_n": 28
+    }
+  }
+}

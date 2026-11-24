@@ -1,0 +1,36 @@
+{
+ "buckets": 262144,
+ "data": {
+  "aegis": {
+   "train": 24095,
+   "validation": 1201,
+   "test": 1928
+  },
+  "own_comply": 10250,
+  "own_refuse": 3250
+ },
+ "request": {
+  "threshold": 1.1246,
+  "aegis_test_auroc": 0.8832,
+  "aegis_test_unsafe_stopped": 0.6872,
+  "aegis_test_safe_stopped": 0.0889,
+  "own_comply_stopped_report_part": 0.0085,
+  "own_refuse_stopped_report_part": 0.3254,
+  "harmbench_stopped": {
+   "all": "91/300",
+   "chemical_biological": "10/56",
+   "cybercrime_intrusion": "11/67",
+   "harassment_bullying": "12/25",
+   "harmful": "6/22",
+   "illegal": "47/65",
+   "misinformation_disinformation": "5/65"
+  }
+ },
+ "reply": {
+  "threshold": 1.4,
+  "train": 9431,
+  "aegis_test_auroc": 0.8588,
+  "aegis_test_unsafe_stopped": 0.4391,
+  "aegis_test_safe_stopped": 0.0477
+ }
+}
