@@ -5,6 +5,8 @@
 Source and development evidence for Acadia, Katahdin and Atlantic, the LLM
 offerings of Krummholz AI LLC.
 
+Current flagship beta: [Atlantic 27B v8.2 model card and downloads](releases/atlantic-27b-v8.2/).
+
 Krummholz AI LLC is a Maine limited liability company. Maine approved its
 formation on October 29, 2026.
 
