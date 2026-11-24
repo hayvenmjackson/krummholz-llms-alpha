@@ -8,6 +8,10 @@ offerings of Krummholz AI LLC.
 Krummholz AI LLC is a Maine limited liability company. Maine approved its
 formation on October 29, 2026.
 
+## Sebago field reader
+
+Sebago is our 40,530-parameter on-device field-record reader. Download the portable app and weights, inspect each held-out prediction, or retrain it on a CPU. [Source and model card](releases/sebago/README.md) · [Hugging Face downloads](https://huggingface.co/krummholz-ai/Sebago-40K) · [Field notes](https://krummholz.ai/field-notes/sebago-field-reader/)
+
 ## Atlantic Lite device test
 
 On November 23, 2026, Atlantic Lite v8.1 Q4_K_M completed a 102-item test on a Samsung Galaxy S26.

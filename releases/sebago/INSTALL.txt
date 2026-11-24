@@ -1,0 +1,23 @@
+The Sebago field reader runs on your device.
+
+Windows, macOS or Linux
+Extract this ZIP. Open Sebago.html with a current browser such as Edge, Chrome,
+Firefox or Safari. If opening the file shows its source, use your browser's Open
+File command to open Sebago.html. This copy includes its model, fonts and photo.
+
+Android or iOS
+Use https://krummholz.ai/apps/sebago/#install on the phone for the offline web app.
+On Android use Chrome's menu > Add to Home screen > Install.
+On iOS use Safari's Share > Add to Home Screen. Turn on Open as Web App when
+offered and tap Add. Open Sebago once while online and check the offline-ready
+message before taking it into the field. App Store and Google Play listings are
+planned for the coming weeks.
+
+Choose a fictional field record, edit or hide a field, then click Read field.
+Changes are stored in your local browser where it permits local storage. Clearing
+browser data removes them. The Model card tab downloads the embedded weights.
+Use separate field records and training code to retrain Sebago yourself. Krummholz
+AI can retrain it for a small fee. See https://krummholz.ai/llms/sebago/.
+
+Model and training code: https://huggingface.co/krummholz-ai/Sebago-40K
+Field notes: https://krummholz.ai/field-notes/sebago-field-reader/
