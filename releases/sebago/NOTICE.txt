@@ -1,0 +1,17 @@
+Sebago 40K
+Copyright 2026 Krummholz AI LLC.
+
+The original model weights, initialization, synthetic evaluation cases, training
+program and application code are licensed under Apache License 2.0. The Krummholz
+AI name, wind-bent K and wordmark are trademarks of Krummholz AI LLC. Apache
+License 2.0 section 6 addresses trademark rights.
+
+Sebago Lake P1030495 by NewtonCourt (2020) is licensed under CC BY-SA 4.0.
+The app compresses and crops the photo for display. The adapted photo retains
+CC BY-SA 4.0.
+https://commons.wikimedia.org/wiki/File:Sebago_Lake_P1030495.jpg
+https://creativecommons.org/licenses/by-sa/4.0/
+
+DM Sans and Libre Franklin are licensed under SIL Open Font License 1.1.
+Font copyright notices and full license texts are in assets/dmsans-OFL.txt and
+assets/librefranklin-OFL.txt and in the app's Model card tab.
