@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Atlantic",
+  "version": "0.1.0",
+  "identifier": "ai.krummholz.atlantic",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{ "label": "main", "title": "Atlantic | Krummholz AI", "width": 1180, "height": 820, "minWidth": 360, "minHeight": 600 }],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; connect-src 'self' ipc: http://ipc.localhost; frame-src 'none'; object-src 'none'; base-uri 'none'"
+    }
+  },
+  "bundle": { "active": true, "targets": "all", "shortDescription": "Private local models with a knowledge store", "category": "Productivity" }
+}

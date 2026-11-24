@@ -1,0 +1,33 @@
+{
+  "name": "@krummholz/atlantic-app",
+  "private": true,
+  "version": "0.1.0-design",
+  "type": "module",
+  "description": "Atlantic cross-platform app design and native integration foundation. Not a consumer release.",
+  "scripts": {
+    "prepare:assets": "node scripts/prepare-assets.mjs",
+    "dev": "npm run prepare:assets && vite --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run prepare:assets && npm run typecheck && vite build",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:preview": "node --test tests/preview.test.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "standalone": "node scripts/standalone.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "1.31.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "jsdom": "31.0.1",
+    "typescript": "5.9.3",
+    "vite": "8.0.13"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
