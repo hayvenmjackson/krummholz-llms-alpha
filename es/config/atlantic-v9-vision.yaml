@@ -1,0 +1,108 @@
+# Atlantic v9 with vision: the v9 text search (ESSA singular values of the v8 LoRA) plus a low-rank
+# in-place search over the vision tower, under one fitness that includes image items.
+# Loaded with es.vision.load_vision_config, which resolves `extends` and deep-merges this file over
+# atlantic-v9.yaml; es_loop.load_config needs the small `extends` change listed in es/VISION.md.
+#
+# Base: Qwen/Qwen3.8-27B revision 37561816, vision tower model.visual (27 blocks, width 1152, MLP 4304,
+# 16 heads, patch 16, temporal patch 2, 2x2 merger to 5120; 460,730,096 BF16 parameters). The v8 LoRA
+# touches the language model only, so every vision weight starts at the base checkpoint.
+#
+# Search vector = text theta (rank 16 x LoRA modules, logged by `python -m es.es_loop run`)
+#               + vision z (2,048 coordinates with the scope below; `python -m es.vision plan`).
+# Each candidate perturbs both blocks with its own sigma; both share the candidate's one fitness and
+# its centered-rank utility. Vision noise seeds: derive_seed(run.seed, "vision-noise", gen, j).
+#
+# Batch per candidate: 80 text pair items + 16 retention + 32 image items = 128 (images 25 percent).
+# Replies per generation stay 49 x 128 = 6,272. The tower is one global state per engine, so every
+# candidate's requests (text and image) run in their own engine call under its vision state
+# (backend.wave_size: 1, schedule.mode: per_candidate): one LoRA per call, 128 sequences per call.
+# Estimated cost, to be measured in the pilot: 49 calls of 128 instead of one call of 6,272 at up to
+# 256 concurrent sequences, so each call pays a drain tail; expect roughly 15 to 40 percent more wall
+# time per generation than the text-only engine. Re-run `plan` with the measured rate before launch;
+# G5 (pace) still applies.
+
+extends: atlantic-v9.yaml
+
+run:
+  name: atlantic-v9-vision
+
+data:
+  pairs_per_batch: 40            # 80 text pair items (text-only v9 uses 56 pairs = 112 items)
+  retention:
+    per_batch: 16                # unchanged: 16 / 128 = 12.5 percent
+
+vision:
+  enabled: true
+  space:
+    core: diag                   # delta = s_W * U diag(c) V^T; "full" uses an r x r core instead
+    basis_seed: 20261127         # U, V = QR of PCG64 Gaussians seeded per tensor; stored with sha256
+    scale: rms_singular          # s_W = ||W0||_F / sqrt(min(rows, cols)); vectors: RMS entry
+    vector_scale_floor: 1.0e-3
+    blocks: {last: 9}            # blocks 18..26 of 27 (33 percent); 7 = 25 percent, 14 = 50 percent
+    block_modules: [attn.qkv, attn.proj, mlp.linear_fc1, mlp.linear_fc2]
+    block_biases: false
+    merger_matrices: true        # merger.linear_fc1 (4608 x 4608), merger.linear_fc2 (5120 x 4608)
+    merger_vectors: true         # merger.linear_fc1.bias, linear_fc2.bias, merger.norm.weight, .bias
+    patch_embed: false
+    pos_embed: false
+    ranks: {block: 48, merger: 128, vector: 16, patch_embed: 32, pos_embed: 32}
+    # dim = 9 blocks x 4 x 48 + 2 x 128 + 4 x 16 = 2,048; touched 181,862,144 params (39.5 percent of
+    # the tower); pinned originals 364 MB BF16; bases 41.3 MB FP32 on disk (82.5 MB as FP64 on the GPU)
+  es:
+    sigma: 0.05                  # vision sigma, separate from es.sigma (text); calibrate on image items:
+                                 # grid 0.02, 0.05, 0.10, 0.20 by image-reply flip rate (target >= 0.20)
+    optimizer:
+      kind: sgd                  # same rule as the text block
+      lr: null
+      lr_sigma2_coef: 1.7        # lr_v = 1.7 x sigma_v^2
+      beta1: 0.9
+      beta2: 0.999
+      eps: 1.0e-8
+      momentum: 0.0
+    awd: 0.005                   # Anchored Weight Decay toward z = 0 (the base tower)
+    z_max_abs: null
+    max_update_norm: null
+  data:
+    # Image items come from the vision yardstick (jsonl, code and manifests in the private
+    # krummholz-training-data-internal repo under yardstick/heldout-vision; image files in the private
+    # Hugging Face dataset krummholz-ai/yardstick-vision). Pod copies; the loader fails closed if any
+    # file is missing or an image's sha256 differs from the manifest. Set the exact file names from
+    # that build's FORMAT.md before launch. Its terminal split is never copied to the pod.
+    train_pool: /workspace/yardstick/heldout-vision/train_pool.jsonl
+    dev: /workspace/yardstick/heldout-vision/dev.jsonl
+    images_root: /workspace/yardstick-vision/images
+    images_manifest: /workspace/yardstick/heldout-vision/MANIFEST.json
+    per_batch: 32                # 32 / 128 = 25 percent of every candidate's batch
+    dev_per_check: 64            # image items in each dev check (parent only)
+    max_pixels: 262144           # 512 x 512: at most 1,024 patches, 256 image tokens per image
+    required: true
+  fitness:
+    grader:
+      kind: module
+      path: /workspace/yardstick/heldout-vision/grader.py   # grade(item, reply) -> {verdict, correct, reward}
+      function: grade
+    combine: items               # image rewards enter the one fitness as items (weight = their share)
+  schedule:
+    mode: per_candidate          # per_candidate | serial (see es.vision.plan_waves)
+  runtime:
+    originals: auto              # device when free GPU memory > 3 x 364 MB, else page-locked host memory
+    compute_dtype: float64       # W0 + delta in FP64, then one cast to BF16 (export uses the same rule)
+    verify_on_attach: true       # served touched tensors must hash to the snapshot's bytes
+    audit_restore: true          # after every restore: touched tensors equal the pinned originals
+    cache_policy: auto           # reset (encoder and prefix caches cleared per apply) when vLLM has
+                                 # reset_encoder_cache, else keyed (state-named uuids plus cache_salt)
+    use_worker_extension: true
+  export:
+    mode: mmproj                 # vision-only HF snapshot; "full" also rewrites shard 1 for vLLM use
+    llama_cpp_min_build: b12407
+    outtype: f16
+
+backend:
+  wave_size: 1                   # one candidate per engine call (its vision state is applied around it)
+  engine:
+    fp8_base: false              # required: an FP8 tower cannot take in-place BF16 deltas (attach refuses)
+    limit_mm_per_prompt: {image: 1, video: 0}
+    extra_kwargs:
+      worker_extension_cls: es.backends.vision_hooks.VisionWorkerExtension
+      mm_processor_kwargs: {size: {longest_edge: 262144, shortest_edge: 65536}}
+      mm_processor_cache_gb: 4
