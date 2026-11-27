@@ -1,0 +1,159 @@
+# Atlantic v9: ESSA-style evolution strategies on the singular values of the cumulative v8 LoRA.
+# Values follow es/PROTOCOL-atlantic-v9.md (the pre-registered protocol); change both together.
+#
+# One Montreal H100 80GB SXM ($4.39/h). Base Qwen/Qwen3.8-27B revision 37561816 (BF16, hybrid
+# linear-attention plus full attention, multimodal; vision stays frozen) plus the Atlantic v8
+# rank-16 adapter on every language-model linear layer.
+#
+# Paths are pod paths. Item files, the grader and the system prompt are private copies of
+# krummholz-training-data-internal/yardstick and the pilot prompt; they are never placed in this
+# public repository. The terminal held-out set is refused by the loader and must never be copied
+# to the pod for this run.
+#
+# Arithmetic (python -m es.es_loop plan --config es/config/atlantic-v9.yaml):
+#   population 2 * 24 + 1 = 49 candidates, batch 112 pair items + 16 retention = 128 prompts
+#   6,272 replies per generation, 200 generations = 1,254,400 replies (+ at most 6,048 for dev checks)
+#   at  8 replies/s: 43.6 h  (the wall-clock guard stops near generation 180)
+#   at 12 replies/s: 29.1 h, about $128
+#   at 20 replies/s: 17.5 h, about $77
+# Protocol stop rules: no generation starts after $215 of ES spend, nothing runs past $220 (S1);
+# G4 dev gate and G5 pace at generation 40; S5 retention; S6 engineering pauses (see `gates`).
+# If the pilot (pilot/PILOT.md) measures under 10 replies/s for 49 resident-rotating adapters,
+# drop es.pairs to 16 (33 candidates, 4,224 replies per generation) rather than cutting generations.
+
+run:
+  name: atlantic-v9
+  seed: 20261127                 # every noise seed, batch and the dev reference ranking derive from this
+
+essa:
+  adapter: /workspace/models-from-us/krummholz-v8/release/atlantic-27b-v8/adapter
+  include: null                  # regex on module names to search (null = every LoRA module)
+  exclude: "visual|vision"       # belt and braces: vision modules, if any, are copied unchanged
+  parameterization: relative     # S = S0 * (1 + theta); theta = 0 is Atlantic v8 exactly
+  write_dtype: bfloat16          # candidate adapters (vLLM casts LoRA weights to the model dtype anyway)
+  export_dtype: auto             # final and periodic exports keep the source adapter's dtypes
+  adapter_tmp_dir: /root/es-scratch   # container disk; up to 49 candidate adapters per generation live here
+
+es:
+  pairs: 24                      # antithetic pairs: 24 independent directions, 48 perturbed candidates
+  sigma: 0.05                    # relative noise on each singular value; replace with calibration.json's
+                                 # recommended_sigma before generation 1 (grid 0.02, 0.05, 0.10, 0.20, 0.30)
+  shaping: centered_rank         # tie-averaged centered ranks over the 48 perturbed candidates
+  generations: 200
+  optimizer:
+    kind: sgd                    # protocol: plain SGD, no momentum (adam is available for other runs)
+    lr: null                     # used only when lr_sigma2_coef is null
+    lr_sigma2_coef: 1.7          # lr = 1.7 x sigma^2 (about 0.07 sigma per coordinate per generation)
+    beta1: 0.9                   # adam only
+    beta2: 0.999                 # adam only
+    eps: 1.0e-8                  # adam only
+    momentum: 0.0                # sgd only
+  lr_schedule: constant          # constant | cosine
+  lr_min_frac: 0.1               # cosine floor as a fraction of lr
+  awd: 0.005                     # Anchored Weight Decay: theta = (1 - awd) * (theta + lr * g), toward v8
+  theta_min: null                # no clipping in the protocol's update rule
+  theta_max: null
+  max_update_norm: null
+
+data:
+  train_pool: /workspace/yardstick/heldout/train_pool.jsonl   # 2,400 present/absent pairs (yardstick v1)
+  pair_key: group
+  variants: [present, absent]
+  pairs_per_batch: 56            # 112 pair items per candidate; the pool is covered once every ~43 generations
+  retention:
+    path: /workspace/yardstick/retention/atlantic-retention-v1.jsonl   # identity, utility, safety (to be built)
+    per_batch: 16                # 16 / 128 = 12.5% of each batch
+    required: true               # fail closed if the file is missing
+  system_prompt_file: /workspace/pilot/data/atlantic-pilot-system.txt  # the v8 constitution prompt
+  user_template: "{prompt}\n\n{answer_instruction}"                  # FORMAT.md evaluation input
+
+fitness:
+  grader:
+    kind: module
+    path: /workspace/yardstick/grader/krummholz_grader.py
+    function: grade              # grade(item, reply) -> {verdict, correct, reward in [-1, 1], ...}
+  grader_input: raw              # the grader strips reasoning itself, as in metric evaluation
+  pair_bonus: 0.5                # + 0.5 x fraction of pairs correct in both variants
+  retention_penalty: 1.5         # - 1.5 x fraction of retention items failed
+  incomplete_reward: -1.0        # truncated or unfinished replies; never better than a wrong answer
+  grader_error_reward: 0.0       # a grader exception on one reply (S6 pauses above 1% per generation)
+  grader_workers: 8              # CPU processes for grading (about 2 ms per reply serially)
+  preflight_min_target_acceptance: 0.99   # refuse to start if the grader rejects the pool's own targets
+
+validation:                      # the dev reference batch: monitoring and stop rules, never selection
+  dev: /workspace/yardstick/heldout/dev.jsonl   # first 128 groups by sha256("20261127|" + group); dev has 64
+  every: 10                      # generation 0 (Atlantic v8) and every 10 generations
+  pairs: 128
+  retention: 32                  # from the separate dev retention pool below
+  retention_path: /workspace/yardstick/retention/atlantic-retention-dev-v1.jsonl   # to be built
+
+budget:
+  max_wall_hours: 50             # ES arm ceiling, across all sessions (accumulated in checkpoints)
+  usd_per_hour: 4.39
+  max_usd: 220                   # S1: no generation starts that is projected to end past $220
+  no_start_after_usd: 215        # S1: no new generation once $215 is spent
+  reserve_minutes: 25            # kept for final validation and export
+  overhead_hours: 1.0            # smoke, parity, coverage, calibration and pod setup outside `run`; set to the
+                                 # measured value before launch (counted against all limits). Time inside
+                                 # `run` sessions, including lost generations, is in billing.json.
+  hard_kill: true                # S1: at max_usd stop even inside a generation; the candidate is the last commit
+  heartbeat_seconds: 60          # watchdog thread: records billed time every minute and exits at max_usd
+
+checkpoint:
+  keep_last: 3
+  export_every: 25               # periodic PEFT exports for post-hoc analysis (never auto-selected)
+  save_replies: true             # every reply (reasoning included), gzip JSONL on the pod volume only
+
+gates:
+  dev_gate_gen: 40               # G4: theta_40 must beat theta_0 on the dev reference batch ...
+  dev_gate_se: 2.0               #     ... by more than 2 cluster-bootstrap SEs (dev source blocks)
+  bootstrap_resamples: 2000      #     bootstrap seed = run.seed
+  pace_gen: 40                   # G5: projected committed generations within budget.max_usd ...
+  pace_min_generations: 150      #     ... must be at least 150
+  retention_margin: 3            # S5: 3 or more extra dev retention failures (of 32) versus theta_0 ...
+  retention_consecutive: 2       #     ... at 2 consecutive dev checks stops the run
+  max_grader_error_rate: 0.01    # S6: pause when grader exceptions pass 1% of a generation's replies
+  max_incomplete_rate: 0.05      # S6: pause when incomplete replies pass 5%
+  roundtrip_max_rel_err: 1.0e-3  # S6: the written parent adapter must decode to its singular values
+  parity_pairs: 32               # G0 on the pod: `parity` compares the original v8 adapter with the
+  parity_min_identical: 63       #     rebuilt theta = 0 adapter on 64 prompts; at least 63 identical
+  coverage_prompts: 8            # G0 on the pod: `coverage` amplifies each module group (S x 4) and needs
+  coverage_factor: 3.0           #     every group to change at least one of 8 completions (catches modules
+                                 #     vLLM silently skips, which parity cannot see)
+  require_g0: true               # `run` refuses generation 0 without passing parity.json and coverage.json
+
+backend:
+  kind: vllm
+  base_model: /workspace/models-base/Qwen3.8-27B@37561816
+  tokenizer: null
+  wave_size: 0                   # 0 = all 49 candidates in one generate() call (scheduler rotates adapters)
+  chat_template_kwargs:
+    enable_thinking: true
+  penalize_length_finish: true
+  sampling:
+    temperature: 0.0             # greedy: fitness is a deterministic function of the weights
+    top_p: 1.0
+    max_tokens: 512
+    seed: 0
+    skip_special_tokens: true    # the backend refuses this if it would delete <think> or </think>
+  engine:
+    dtype: bfloat16
+    fp8_base: false              # true: quantization=fp8 (about 27 GB base instead of 54 GB); scores then
+                                 # come from an FP8 base while the release runs BF16 or GGUF
+    kv_cache_dtype: null         # "fp8" halves KV memory
+    # numeric settings (dtype, fp8_base, kv_cache_dtype, lora_dtype, max_model_len, max_lora_rank, seed,
+    # extra_kwargs) are part of the run's config hash and cannot change on resume; the memory and
+    # scheduling settings (max_loras, max_cpu_loras, gpu_memory_utilization, max_num_seqs,
+    # max_num_batched_tokens, enforce_eager, enable_prefix_caching) can
+    max_lora_rank: 16
+    max_loras: 4                 # adapters resident on the GPU in one batch
+    max_cpu_loras: null          # null = population (49)
+    enable_prefix_caching: true  # the constitution prefix is cached per adapter
+    gpu_memory_utilization: 0.92
+    max_model_len: 4096
+    max_num_seqs: 256
+    max_num_batched_tokens: null
+    enforce_eager: false
+    seed: 0
+    limit_mm_per_prompt: {image: 0, video: 0}
+    extra_kwargs: {}
