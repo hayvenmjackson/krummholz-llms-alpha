@@ -210,7 +210,7 @@ is proven for a 4B VL model on this hardware, so it is a separate research track
    per user (so at most three new personal adapter versions per day). Each cycle
    still passes the full gate. A per-cycle cap on accepted items is set from the
    synthetic-user experiments (section 9, item 3).
-5. **Organization adapters (L3) are in scope for the January 2, 2027 launch**
+5. **Organization adapters (L3) are in scope for the December 21, 2026 launch**
    (section 13).
 
 ## 11. On-device training research track
